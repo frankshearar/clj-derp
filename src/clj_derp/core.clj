@@ -37,21 +37,59 @@
                (deref v#))))))))
 
 (defprotocol Parser
+  (d [this token])
   (parse-null-int [this]))
+
+;; Since we use Delays, equality comparison becomes troublesome.
+;; eq gives us a chance to force any delays, permitting us to
+;; still compare graphs for structural equality.
+(defprotocol ComparableParser
+  (eq [this that]))
 
 (defn-fix parse-null {} (fn [parser] parse-null-int parser))
 
+(declare empty-p)
+(declare eps)
+(declare eps*)
+(declare lit)
+(declare alt)
+
 (defrecord empty-parser []
+  ComparableParser
+  (eq [this that]
+    (= this that))
   Parser
+  (d [this _] this)
   (parse-null-int [_] #{}))
+
 (defrecord empty-string-parser [treeSet]
+  ComparableParser
+  (eq [this that]
+    (= this that))
   Parser
+  (d [this _] (empty-p))
   (parse-null-int [_] treeSet))
+
 (defrecord literal-parser [token]
+  ComparableParser
+  (eq [this that]
+    (= this that))
   Parser
+  (d [this t]
+    (if (= token t)
+      (eps* token)
+      (empty-p)))
   (parse-null-int [_] #{}))
+
 (defrecord union-parser [left right]
+  ComparableParser
+  (eq [this that]
+    (and (eq (force (:left this)) (force (:left that)))
+         (eq (force (:right this)) (force (:right that)))))
   Parser
+  (d [this t]
+    (alt (d (force (:left this)) t)
+         (d (force (:right this)) t)))
   (parse-null-int [p]
     (set/union
      (parse-null-int (force (:left p)))
@@ -65,4 +103,6 @@
 (defn alt
   ([] (empty-p))
   ([a & parsers]
-     (union-parser. (delay a) (delay (apply alt parsers)))))
+     (if parsers
+       (union-parser. (delay a) (delay (apply alt parsers)))
+       a)))
