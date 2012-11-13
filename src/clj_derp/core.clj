@@ -1,6 +1,15 @@
 (ns clj-derp.core
   (:require [clojure.set :as set]))
 
+(defn cart-prod [set-one set-two concat-fn]
+  "Return the Cartesian product of set-one and set-two."
+  (set (mapcat
+        (fn [a] (map
+                 (fn [b]
+                   (apply concat-fn [a b]))
+                 set-two))
+        set-one)))
+
 (defmacro defn-fix [name bottom fn]
   `(let* [*cache*# (atom {})
        *changed?*# (atom false)
@@ -55,6 +64,7 @@
 (declare eps*)
 (declare lit)
 (declare alt)
+(declare cat)
 
 (defrecord empty-parser []
   ComparableParser
@@ -83,6 +93,18 @@
       (empty-p)))
   (parse-null-int [_] #{}))
 
+(defrecord sequence-parser [first second]
+  ComparableParser
+  (eq [this that]
+    (and (eq (force (:first this)) (force (:first that)))
+         (eq (force (:second this)) (force (:second that)))))
+  Parser
+  (parse-null-int [this]
+    (cart-prod
+     (parse-null (force (:first this)))
+     (parse-null (force (:second this)))
+     (fn [a b] [a b]))))
+
 (defrecord union-parser [left right]
   ComparableParser
   (eq [this that]
@@ -101,12 +123,20 @@
 (defn empty-p [] (empty-parser.))
 (defn eps [] (empty-string-parser. #{nil}))
 (defn eps* [token] (empty-string-parser. #{token}))
+;; A temporary function until I find out the syntax for multimethods
+(defn eps** [token] (empty-string-parser. token))
 (defn lit [token] (literal-parser. token))
 (defn alt
   ([] (empty-p))
   ([a & parsers]
      (if parsers
        (union-parser. (delay a) (delay (apply alt parsers)))
+       a)))
+(defn cat
+  ([] (empty-p))
+  ([a & parsers]
+     (if parsers
+       (sequence-parser. (delay a) (delay (apply cat parsers)))
        a)))
 
 (defn parse [parser input]
