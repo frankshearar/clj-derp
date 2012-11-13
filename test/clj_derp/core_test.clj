@@ -49,3 +49,10 @@
     (is (= #{"a"} (parse-null (eps* "a"))))
     (testing "of Union"
       (is (= #{"a" "b"} (parse-null (alt (eps* "a") (eps* "b"))))))))
+
+(deftest parsing
+  (testing "Basic parse tests"
+    (is (= #{} (parse (empty-p) [])))
+    (is (= #{} (parse (empty-p) ["a"])))
+    (is (= #{nil} (parse (eps) [])))
+    (is (= #{"a"} (parse (lit "a") ["a"])))))

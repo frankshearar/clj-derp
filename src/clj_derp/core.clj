@@ -48,6 +48,8 @@
 
 (defn-fix parse-null {} (fn [parser] parse-null-int parser))
 
+;; We forward declare the helper constructors because we use them
+;; in the deftypes.
 (declare empty-p)
 (declare eps)
 (declare eps*)
@@ -106,3 +108,8 @@
      (if parsers
        (union-parser. (delay a) (delay (apply alt parsers)))
        a)))
+
+(defn parse [parser input]
+  (if (empty? input)
+    (parse-null parser)
+    (parse (d parser (first input)) (rest input))))
