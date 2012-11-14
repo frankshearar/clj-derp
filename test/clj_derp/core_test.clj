@@ -36,7 +36,15 @@
       (is (= (eps* "a") (d (lit "a") "a"))))
     (testing "alt"
       (is (eq (alt (d (lit "a") "a") (d (lit "b") "a"))
-             (d (alt (lit "a") (lit "b")) "a"))))))
+              (d (alt (lit "a") (lit "b")) "a"))))
+    (testing "cat"
+      (testing "when first parser nullable"
+        (is (eq (alt (cat (eps* "a") (empty-p))
+                     (cat (empty-p) (lit "b")))
+                (d (cat (eps* "a") (lit "b")) "not-an-a"))))
+      (testing "when first parser not nullable"
+        (is (eq (cat (eps* "a") (lit "b"))
+                (d (cat (lit "a") (lit "b")) "a")))))))
 
 (deftest comparing
   (testing "Comparing"
@@ -48,9 +56,14 @@
       (is (not (eq (empty-p) (alt (lit "a") (lit "b"))))))
     (testing "eps"
       (is (eq (eps) (eps)))
+      (is (eq (eps* "a") (eps* "a")))
+      (is (eq (eps** #{"a" "b"}) (eps** #{"a" "b"})))
       (is (not (eq (eps) (eps* "a"))))
       (is (not (eq (eps) (lit "a"))))
       (is (not (eq (eps) (alt)))))
+    (testing "lit"
+      (is (eq (lit "a") (lit "a")))
+      (is (not (eq (lit "a") (lit "b")))))
     (testing "sequences"
       (is (eq (cat) (cat)))
       (is (eq (cat (lit "a")) (cat (lit "a"))))

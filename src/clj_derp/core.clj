@@ -64,6 +64,7 @@
 (declare empty-p)
 (declare eps)
 (declare eps*)
+(declare eps**)
 (declare lit)
 (declare alt)
 (declare cat)
@@ -107,6 +108,13 @@
   (nullable-int? [this]
     (and (nullable? (force (:first this)))
          (nullable? (force (:second this)))))
+  (d [this t]
+    (if (nullable? (force (:first this)))
+      (alt (cat (eps** (parse-null (force (:first this))))
+                (d (force (:second this)) t))
+           (cat (d (force (:first this)) t)
+                (force (:second this))))
+      (cat (d (force (:first this)) t) (force (:second this)))))
   (parse-null-int [this]
     (cart-prod
      (parse-null (force (:first this)))
@@ -127,8 +135,8 @@
         (nullable? (force (:right this)))))
   (parse-null-int [p]
     (set/union
-     (parse-null-int (force (:left p)))
-     (parse-null-int (force (:right p))))))
+     (parse-null (force (:left p)))
+     (parse-null (force (:right p))))))
 
 ;; Utility constructors
 (defn empty-p [] (empty-parser.))
