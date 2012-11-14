@@ -12,6 +12,11 @@
 
 (deftest making-parsers
   (testing "Making"
+    (testing "reduction parser"
+      (let [p (eps* 1)
+            fn (fn [x] (+ x 1))]
+        (is (= p (:parser (red p fn))))
+        (is (= 2 (apply (:fn (red p fn)) [1])))))
     (testing "sequence parser"
       (is (= (empty-p) (cat)))
       (is (= (lit "a") (cat (lit "a"))))
@@ -34,6 +39,9 @@
     (testing "lit"
       (is (= (empty-p) (d (lit "a") "not a")))
       (is (= (eps* "a") (d (lit "a") "a"))))
+    (testing "red"
+      (let [fn (fn [x] (+ 1 x))]
+        (is (= (red (eps* "a") fn) (d (red (lit "a") fn) "a")))))
     (testing "alt"
       (is (eq (alt (d (lit "a") "a") (d (lit "b") "a"))
               (d (alt (lit "a") (lit "b")) "a"))))
@@ -89,6 +97,9 @@
       (is (nullable? (eps** #{"a" "b"}))))
     (testing "of lit"
       (is (not (nullable? (lit "a")))))
+    (testing "of red"
+      (is (nullable? (red (eps* 1) (fn [x] (+ x 1)))))
+      (is (not (nullable? (red (empty-p) (fn [_] 1))))))
     (testing "of cat"
       (is (nullable? (cat (eps) (eps))))
       (is (not (nullable? (cat (empty-p) (eps)))))
@@ -110,6 +121,8 @@
     (is (= #{} (parse-null (empty-p))))
     (is (= #{} (parse-null (lit "a"))))
     (is (= #{"a"} (parse-null (eps* "a"))))
+    (testing "of red"
+      (is (= #{1 2} (parse-null (red (eps** #{0 1}) (fn [x] (+ 1 x)))))))
     (testing "of Cat"
       (is (= #{} (parse-null (cat))))
       (is (= #{["a" "b"]} (parse-null (cat (eps* "a") (eps* "b")))))

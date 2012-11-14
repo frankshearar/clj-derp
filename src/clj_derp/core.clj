@@ -68,6 +68,7 @@
 (declare lit)
 (declare alt)
 (declare cat)
+(declare red)
 
 (defrecord empty-parser []
   ComparableParser
@@ -98,6 +99,15 @@
       (empty-p)))
   (nullable-int? [this] false)
   (parse-null-int [_] #{}))
+
+(defrecord red-parser [parser fn]
+  Parser
+  (d [this t]
+    (red (d (:parser this) t) fn))
+  (nullable-int? [this]
+    (nullable? (:parser this)))
+  (parse-null-int [this]
+    (set (map (:fn this) (parse-null (:parser this))))))
 
 (defrecord sequence-parser [first second]
   ComparableParser
@@ -157,6 +167,8 @@
      (if parsers
        (sequence-parser. (delay a) (delay (apply cat parsers)))
        a)))
+(defn red [parser fn]
+  (red-parser. parser fn))
 
 (defn parse [parser input]
   (if (empty? input)
