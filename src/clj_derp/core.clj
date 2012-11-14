@@ -47,6 +47,7 @@
 
 (defprotocol Parser
   (d [this token])
+  (nullable-int? [this])
   (parse-null-int [this]))
 
 ;; Since we use Delays, equality comparison becomes troublesome.
@@ -56,6 +57,7 @@
   (eq [this that]))
 
 (defn-fix parse-null {} (fn [parser] (parse-null-int parser)))
+(defn-fix nullable? false (fn [parser] (nullable-int? parser)))
 
 ;; We forward declare the helper constructors because we use them
 ;; in the deftypes.
@@ -72,6 +74,7 @@
     (= this that))
   Parser
   (d [this _] this)
+  (nullable-int? [this] false)
   (parse-null-int [_] #{}))
 
 (defrecord empty-string-parser [treeSet]
@@ -80,6 +83,7 @@
     (= this that))
   Parser
   (d [this _] (empty-p))
+  (nullable-int? [this] true)
   (parse-null-int [_] treeSet))
 
 (defrecord literal-parser [token]
@@ -91,6 +95,7 @@
     (if (= token t)
       (eps* token)
       (empty-p)))
+  (nullable-int? [this] false)
   (parse-null-int [_] #{}))
 
 (defrecord sequence-parser [first second]
@@ -99,6 +104,9 @@
     (and (eq (force (:first this)) (force (:first that)))
          (eq (force (:second this)) (force (:second that)))))
   Parser
+  (nullable-int? [this]
+    (and (nullable? (force (:first this)))
+         (nullable? (force (:second this)))))
   (parse-null-int [this]
     (cart-prod
      (parse-null (force (:first this)))
@@ -114,6 +122,9 @@
   (d [this t]
     (alt (d (force (:left this)) t)
          (d (force (:right this)) t)))
+  (nullable-int? [this]
+    (or (nullable? (force (:left this)))
+        (nullable? (force (:right this)))))
   (parse-null-int [p]
     (set/union
      (parse-null-int (force (:left p)))

@@ -65,6 +65,32 @@
       (is (not (eq (alt (lit "a")) (alt (lit "b")))))
       (is (not (eq (alt (eps) (lit "a")) (alt (eps) (lit "b"))))))))
 
+(deftest nullability
+  (testing "Nullability"
+    (testing "of empty"
+      (is (not (nullable? (empty-p)))))
+    (testing "of eps"
+      (is (nullable? (eps))))
+    (testing "of eps*"
+      (is (nullable? (eps* "a")))
+      (is (nullable? (eps** #{"a" "b"}))))
+    (testing "of lit"
+      (is (not (nullable? (lit "a")))))
+    (testing "of cat"
+      (is (nullable? (cat (eps) (eps))))
+      (is (not (nullable? (cat (empty-p) (eps)))))
+      (is (not (nullable? (cat (eps) (empty-p)))))
+      (is (not (nullable? (cat (empty-p) (empty-p)))))
+      (is (nullable? (cat (cat (eps) (eps)) (eps))))
+      (is (nullable? (cat (eps) (cat (eps) (eps))))))
+    (testing "of union"
+      (is (nullable? (alt (eps) (eps))))
+      (is (nullable? (alt (empty-p) (eps))))
+      (is (nullable? (alt (eps) (empty-p))))
+      (is (not (nullable? (alt (empty-p) (empty-p)))))
+      (is (nullable? (alt (alt (empty-p) (eps)) (empty-p))))
+      (is (nullable? (alt (empty-p) (alt (empty-p) (eps))))))))
+
 (deftest parsing-null
   (testing "Null parses"
     (is (= #{nil} (parse-null (eps))))
