@@ -105,9 +105,6 @@
     (and (eq (force (:first this)) (force (:first that)))
          (eq (force (:second this)) (force (:second that)))))
   Parser
-  (nullable-int? [this]
-    (and (nullable? (force (:first this)))
-         (nullable? (force (:second this)))))
   (d [this t]
     (if (nullable? (force (:first this)))
       (alt (cat (eps** (parse-null (force (:first this))))
@@ -115,6 +112,9 @@
            (cat (d (force (:first this)) t)
                 (force (:second this))))
       (cat (d (force (:first this)) t) (force (:second this)))))
+  (nullable-int? [this]
+    (and (nullable? (force (:first this)))
+         (nullable? (force (:second this)))))
   (parse-null-int [this]
     (cart-prod
      (parse-null (force (:first this)))
