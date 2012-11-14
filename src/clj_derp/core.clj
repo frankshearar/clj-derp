@@ -15,7 +15,7 @@
        *changed?*# (atom false)
        *running?*# (atom false)
        *visited*# (atom {})]
-      (defn parse-null [x#]
+      (defn ~name [x#]
         ;(prn x#)
         (let [cached?# (contains? (deref *cache*#) x#)
               cached# (get (deref *cache*#) x#)
@@ -24,11 +24,11 @@
            (and cached?# (not run?#))
            cached#
            (and run?# (get (deref *visited*#) x#))
-           (if cached?# cached# {})
+           (if cached?# cached# ~bottom)
            run?#
            (do
              (swap! *visited*# assoc x# true)
-             (let [new-val# (parse-null-int x#)]
+             (let [new-val# (apply ~fn [x#])]
                (when (not (= new-val# cached#))
                  (swap! *changed?*# (fn [_#] true))
                  (swap! *cache*# assoc x# new-val#))
@@ -38,11 +38,11 @@
              (swap! *changed?*# (fn [_#] true))
              (swap! *running?*# (fn [_#] true))
              (swap! *visited*# (fn [_#] {}))
-             (let [v# (atom {})]
+             (let [v# (atom ~bottom)]
                (while (deref *changed?*#)
                  (swap! *changed?*# (fn [_#] false))
                  (swap! *visited*# (fn [_#] {}))
-                 (swap! v# (fn [_#] (parse-null-int x#))))
+                 (swap! v# (fn [_#] (apply ~fn [x#]))))
                (deref v#))))))))
 
 (defprotocol Parser
@@ -55,7 +55,7 @@
 (defprotocol ComparableParser
   (eq [this that]))
 
-(defn-fix parse-null {} (fn [parser] parse-null-int parser))
+(defn-fix parse-null {} (fn [parser] (parse-null-int parser)))
 
 ;; We forward declare the helper constructors because we use them
 ;; in the deftypes.
