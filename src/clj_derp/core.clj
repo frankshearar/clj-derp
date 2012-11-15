@@ -71,6 +71,7 @@
 (declare alt)
 (declare cat)
 (declare red)
+(declare star)
 
 (defrecord empty-parser []
   ComparableParser
@@ -114,6 +115,20 @@
     (nullable? (:parser this)))
   (parse-null-int [this]
     (set (map (:fn this) (parse-null (:parser this))))))
+
+(defrecord star-parser [parser]
+  ComparableParser
+  (eq [this that]
+    (= this that))
+  Parser
+  (d [this t]
+    (cat (d (:parser this) t) this))
+  (empty-int? [_] false)
+  (nullable-int? [this]
+    (or (nullable? (:parser this))
+        (empty-p? (:parser this))))
+  (parse-null-int [this]
+    #{}))
 
 (defrecord sequence-parser [first second]
   ComparableParser
@@ -181,6 +196,8 @@
        a)))
 (defn red [parser fn]
   (red-parser. parser fn))
+(defn star [parser]
+  (star-parser. parser))
 
 (defn parse [parser input]
   (if (empty? input)

@@ -17,6 +17,9 @@
             fn (fn [x] (+ x 1))]
         (is (= p (:parser (red p fn))))
         (is (= 2 (apply (:fn (red p fn)) [1])))))
+    (testing "star parser"
+      (let [p (eps* 1)]
+        (is (= p (:parser (star p))))))
     (testing "sequence parser"
       (is (= (empty-p) (cat)))
       (is (= (lit "a") (cat (lit "a"))))
@@ -42,6 +45,9 @@
     (testing "red"
       (let [fn (fn [x] (+ 1 x))]
         (is (= (red (eps* "a") fn) (d (red (lit "a") fn) "a")))))
+    (testing "star"
+      (is (eq (cat (d (lit "a") "a") (star (lit "a")))
+              (d (star (lit "a")) "a"))))
     (testing "alt"
       (is (eq (alt (d (lit "a") "a") (d (lit "b") "a"))
               (d (alt (lit "a") (lit "b")) "a"))))
@@ -72,6 +78,9 @@
     (testing "lit"
       (is (eq (lit "a") (lit "a")))
       (is (not (eq (lit "a") (lit "b")))))
+    (testing "star"
+      (is (eq (star (lit "a")) (star (lit "a"))))
+      (is (not (eq (star (lit "a")) (star (lit "b"))))))
     (testing "sequences"
       (is (eq (cat) (cat)))
       (is (eq (cat (lit "a")) (cat (lit "a"))))
@@ -100,6 +109,13 @@
     (testing "of red"
       (is (nullable? (red (eps* 1) (fn [x] (+ x 1)))))
       (is (not (nullable? (red (empty-p) (fn [_] 1))))))
+    (testing "of star"
+      (testing "when subparser not empty"
+        (is (not (nullable? (star (lit "a")))))
+        (is (nullable? (star (eps)))))
+      (testing "when subparser empty"
+        (is (nullable? (star (empty-p))))
+        (is (nullable? (star (cat (empty-p) (empty-p)))))))
     (testing "of cat"
       (is (nullable? (cat (eps) (eps))))
       (is (not (nullable? (cat (empty-p) (eps)))))
@@ -127,6 +143,13 @@
   (testing "of red"
     (is (not (empty-p? (red (eps* 1) (fn [x] (+ 1 x))))))
     (is (empty-p? (red (empty-p) (fn [_] 1)))))
+  (testing "of star"
+    (is (not (empty-p? (star (empty-p)))))
+    (is (not (empty-p? (star (eps)))))
+    (is (not (empty-p? (star (eps* "a")))))
+    (is (not (empty-p? (star (lit "a")))))
+    (is (not (empty-p? (star (cat (eps) (eps))))))
+    (is (not (empty-p? (star (alt (empty-p) (empty-p)))))))
   (testing "of cat"
     (is (empty-p? (cat (empty-p) (empty-p))))
     (is (empty-p? (cat (empty-p) (lit "a"))))
