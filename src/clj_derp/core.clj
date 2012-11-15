@@ -47,6 +47,7 @@
 
 (defprotocol Parser
   (d [this token])
+  (empty-int? [this])
   (nullable-int? [this])
   (parse-null-int [this]))
 
@@ -58,6 +59,7 @@
 
 (defn-fix parse-null {} (fn [parser] (parse-null-int parser)))
 (defn-fix nullable? false (fn [parser] (nullable-int? parser)))
+(defn-fix empty-p? false (fn [parser] (empty-int? parser)))
 
 ;; We forward declare the helper constructors because we use them
 ;; in the deftypes.
@@ -76,6 +78,7 @@
     (= this that))
   Parser
   (d [this _] this)
+  (empty-int? [_] true)
   (nullable-int? [this] false)
   (parse-null-int [_] #{}))
 
@@ -85,6 +88,7 @@
     (= this that))
   Parser
   (d [this _] (empty-p))
+  (empty-int? [_] false)
   (nullable-int? [this] true)
   (parse-null-int [_] treeSet))
 
@@ -97,6 +101,7 @@
     (if (= token t)
       (eps* token)
       (empty-p)))
+  (empty-int? [_] false)
   (nullable-int? [this] false)
   (parse-null-int [_] #{}))
 
@@ -104,6 +109,7 @@
   Parser
   (d [this t]
     (red (d (:parser this) t) fn))
+  (empty-int? [this] (empty-p? (:parser this)))
   (nullable-int? [this]
     (nullable? (:parser this)))
   (parse-null-int [this]
@@ -122,6 +128,9 @@
            (cat (d (force (:first this)) t)
                 (force (:second this))))
       (cat (d (force (:first this)) t) (force (:second this)))))
+  (empty-int? [this]
+    (or (empty-p? (force (:first this)))
+        (empty-p? (force (:second this)))))
   (nullable-int? [this]
     (and (nullable? (force (:first this)))
          (nullable? (force (:second this)))))
@@ -140,6 +149,9 @@
   (d [this t]
     (alt (d (force (:left this)) t)
          (d (force (:right this)) t)))
+  (empty-int? [this]
+    (and (empty-p? (force (:left this)))
+         (empty-p? (force (:right this)))))
   (nullable-int? [this]
     (or (nullable? (force (:left this)))
         (nullable? (force (:right this)))))

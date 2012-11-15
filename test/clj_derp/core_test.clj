@@ -115,6 +115,29 @@
       (is (nullable? (alt (alt (empty-p) (eps)) (empty-p))))
       (is (nullable? (alt (empty-p) (alt (empty-p) (eps))))))))
 
+(deftest emptiness
+  (testing "of empty"
+    (is (empty-p? (empty-p))))
+  (testing "of eps"
+    (is (not (empty-p? (eps)))))
+  (testing "of eps*"
+    (is (not (empty-p? (eps* "a")))))
+  (testing "of lit"
+    (is (not (empty-p? (lit "a")))))
+  (testing "of red"
+    (is (not (empty-p? (red (eps* 1) (fn [x] (+ 1 x))))))
+    (is (empty-p? (red (empty-p) (fn [_] 1)))))
+  (testing "of cat"
+    (is (empty-p? (cat (empty-p) (empty-p))))
+    (is (empty-p? (cat (empty-p) (lit "a"))))
+    (is (empty-p? (cat (lit "a") (empty-p))))
+    (is (not (empty-p? (cat (eps) (eps))))))
+  (testing "of alt"
+    (is (empty-p? (alt (empty-p) (empty-p))))
+    (is (not (empty-p? (alt (empty-p) (eps)))))
+    (is (not (empty-p? (alt (eps) (empty-p)))))
+    (is (not (empty-p? (alt (eps) (eps)))))))
+
 (deftest parsing-null
   (testing "Null parses"
     (is (= #{nil} (parse-null (eps))))
