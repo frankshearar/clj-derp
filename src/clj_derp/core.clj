@@ -137,7 +137,7 @@
     (or (nullable? (:parser this))
         (empty-p? (:parser this))))
   (parse-null-int [this]
-    #{}))
+    #{[]}))
 
 (defrecord sequence-parser [first second]
   ComparableParser

@@ -176,6 +176,9 @@
     (is (= #{"a"} (parse-null (eps* "a"))))
     (testing "of red"
       (is (= #{1 2} (parse-null (red (eps** #{0 1}) (fn [x] (+ 1 x)))))))
+    (testing "of star"
+      (is (= #{[]} (parse-null (star (lit "a"))))
+          (= #{[]} (parse-null (star (eps))))))
     (testing "of Cat"
       (is (= #{} (parse-null (cat))))
       (is (= #{["a" "b"]} (parse-null (cat (eps* "a") (eps* "b")))))
@@ -189,4 +192,6 @@
     (is (= #{} (parse (empty-p) [])))
     (is (= #{} (parse (empty-p) ["a"])))
     (is (= #{nil} (parse (eps) [])))
-    (is (= #{"a"} (parse (lit "a") ["a"])))))
+    (is (= #{"a"} (parse (lit "a") ["a"])))
+    (is (= #{["a" []]} (parse (star (lit "a")) ["a"])))
+    (is (= #{["a" ["a" []]]} (parse (star (lit "a")) ["a" "a"])))))
