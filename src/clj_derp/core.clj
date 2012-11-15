@@ -107,6 +107,15 @@
   (parse-null-int [_] #{}))
 
 (defrecord red-parser [parser fn]
+  ComparableParser
+  ;; There's a major limitation here: there is no = for
+  ;; functions, so if you really care about equality of
+  ;; reduction parsers, you need to control what functions
+  ;; you use: perhaps define a handful of primitives that
+  ;; you can compose as necessary.
+  (eq [this that]
+    (and (eq (:parser this) (:parser that))
+         (= (:fn this) (:fn that))))
   Parser
   (d [this t]
     (red (d (:parser this) t) fn))

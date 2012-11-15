@@ -78,6 +78,13 @@
     (testing "lit"
       (is (eq (lit "a") (lit "a")))
       (is (not (eq (lit "a") (lit "b")))))
+    (testing "red"
+      (let [fn identity]
+        (is (eq (red (lit "a") fn) (red (lit "a") fn)))
+        (is (not (eq (red (lit "a") fn)
+                     (red (lit "b") fn))))
+        (is (not (eq (red (lit "a") fn)
+                     (red (lit "a") (comp fn identity)))))))
     (testing "star"
       (is (eq (star (lit "a")) (star (lit "a"))))
       (is (not (eq (star (lit "a")) (star (lit "b"))))))
