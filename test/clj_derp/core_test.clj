@@ -23,8 +23,8 @@
     (testing "sequence parser"
       (is (= (empty-p) (cat)))
       (is (= (lit "a") (cat (lit "a"))))
-      (is (= (lit "first") (force (:first (cat (lit "first") (lit "second"))))))
-      (is (= (lit "second") (force (:second (cat (lit "first") (lit "second")))))))
+      (is (= (lit "first") (force (:fst (cat (lit "first") (lit "second"))))))
+      (is (= (lit "second") (force (:snd (cat (lit "first") (lit "second")))))))
     (testing "union parser"
       (is (= (empty-p) (alt)))
       (is (= (lit "it") (alt (lit "it"))))
@@ -187,11 +187,79 @@
       (is (= #{} (parse-null (alt))))
       (is (= #{"a" "b"} (parse-null (alt (eps* "a") (eps* "b"))))))))
 
+(deftest compacting
+  (testing "empty"
+    (is (eq (empty-p) (compact (empty-p)))))
+  (testing "eps"
+    (is (eq (eps) (compact (eps))))
+    (is (eq (eps* "a") (compact (eps* "a"))))
+    (is (eq (eps** #{"a" "b"}) (compact (eps** #{"a" "b"})))))
+  (testing "lit"
+    (is (eq (lit "a") (compact (lit "a")))))
+  (testing "red"
+    ;; Compaction of red is red of compacted subparser
+    (is (eq (red (eps* "a") identity)
+            (compact (red (eps* "a") identity))))
+    (is (eq (red (eps* "a") identity)
+            (compact (red (alt (empty-p) (eps* "a")) identity))))
+    (testing "-red -> red"
+      (let [inner-fn (fn [a] (+ a 1))
+            outer-fn (fn [a] (* a 2))
+            red (compact (red (red (eps* 1) inner-fn) outer-fn))]
+        (is (= (apply (comp outer-fn inner-fn) [1])
+               (apply (:fn red) [1]))))))
+  (testing "star"
+    ;; Compaction of star is star of compacted subparser
+    (is (eq (star (eps)) (compact (star (alt (empty-p) (eps)))))))
+  (testing "alt"
+    (is (eq (alt (eps* "a") (eps* "b"))
+            (compact (alt (eps* "a") (eps* "b")))))
+    (is (eq (empty-p) (compact (alt (empty-p) (empty-p)))))
+    (is (eq (eps) (compact (alt (eps) (empty-p)))))
+    (is (eq (eps) (compact (alt (empty-p) (eps))))))
+  (testing "cat"
+    ;; singleton parse -> red
+    (testing "with singleton parses"
+      (testing "for first parser"
+        (let [c (compact (cat (eps* \a) (eps** #{\a \b})))]
+          (is (red? c))
+          (is (= #{'((\a) \a) '((\a) \b)} (parse-null c)))))
+      (testing "for second parser"
+        (let [c (compact (cat (eps** #{\a \b}) (eps* \b)))]
+          (is (red? c))
+          (is (= #{'((\a) \b) '((\b) \b)} (parse-null c))))))
+    (testing "with empty subparsers"
+      (testing "(first)"
+        (is (eq (eps) (compact (cat (empty-p) (eps))))))
+      (testing "(second)"
+        (is (eq (eps) (compact (cat (eps) (empty-p)))))))))
+
 (deftest parsing
   (testing "Basic parse tests"
-    (is (= #{} (parse (empty-p) [])))
+    (is (= #{} (parse (empty-p) '())))
     (is (= #{} (parse (empty-p) ["a"])))
-    (is (= #{nil} (parse (eps) [])))
+    (is (= #{nil} (parse (eps) '())))
     (is (= #{"a"} (parse (lit "a") ["a"])))
-    (is (= #{["a" []]} (parse (star (lit "a")) ["a"])))
-    (is (= #{["a" ["a" []]]} (parse (star (lit "a")) ["a" "a"])))))
+    (is (= #{'("a" ())} (parse (star (lit "a")) ["a"])))
+    (is (= #{'("a" ("a" ()))} (parse (star (lit "a")) ["a" "a"])))))
+
+(deftest singleton-parse-test
+  (testing "no parse trees"
+    (is (not (singleton-parse? (empty-p)))))
+  (testing "one parse tree"
+    (is (singleton-parse? (eps)))
+    (is (singleton-parse? (eps* "a"))))
+  (testing "many parse trees"
+    (is (not (singleton-parse? (eps** #{"a" "b"}))))
+    (is (not (singleton-parse? (alt (eps* "a") (eps* "b")))))))
+
+(deftest testing-classifiers
+  (testing "red"
+    (is (red? (red (eps) identity)))
+    (is (not (red? (empty-p))))
+    (is (not (red? (eps))))
+    (is (not (red? (eps* "a"))))
+    (is (not (red? (lit "a"))))
+    (is (not (red? (star (lit "a")))))
+    (is (not (red? (alt (eps) (eps)))))
+    (is (not (red? (cat (eps) (eps)))))))

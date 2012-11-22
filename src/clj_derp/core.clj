@@ -16,7 +16,6 @@
        *running?*# (atom false)
        *visited*# (atom {})]
       (defn ~name [x#]
-        ;(prn x#)
         (let [cached?# (contains? (deref *cache*#) x#)
               cached# (get (deref *cache*#) x#)
               run?# (deref *running?*#)]
@@ -47,6 +46,7 @@
 
 (defprotocol Parser
   (d [this token])
+  (compact-int [this])
   (empty-int? [this])
   (nullable-int? [this])
   (parse-null-int [this]))
@@ -57,12 +57,16 @@
 (defprotocol ComparableParser
   (eq [this that]))
 
+(def compact (memoize (fn [parser] (compact-int parser))))
 (defn-fix parse-null {} (fn [parser] (parse-null-int parser)))
 (defn-fix nullable? false (fn [parser] (nullable-int? parser)))
 (defn-fix empty-p? false (fn [parser] (empty-int? parser)))
 
+(defn singleton-parse? [parser]
+  (= 1 (count (parse-null parser))))
+
 ;; We forward declare the helper constructors because we use them
-;; in the deftypes.
+;; in the defrecords.
 (declare empty-p)
 (declare eps)
 (declare eps*)
@@ -73,12 +77,17 @@
 (declare red)
 (declare star)
 
+;; We have to forward declare helpers like these because we use them
+;; in the defrecords.
+(declare red?)
+
 (defrecord empty-parser []
   ComparableParser
   (eq [this that]
     (= this that))
   Parser
   (d [this _] this)
+  (compact-int [this] this)
   (empty-int? [_] true)
   (nullable-int? [this] false)
   (parse-null-int [_] #{}))
@@ -89,6 +98,7 @@
     (= this that))
   Parser
   (d [this _] (empty-p))
+  (compact-int [this] this)
   (empty-int? [_] false)
   (nullable-int? [this] true)
   (parse-null-int [_] treeSet))
@@ -102,6 +112,7 @@
     (if (= token t)
       (eps* token)
       (empty-p)))
+  (compact-int [this] this)
   (empty-int? [_] false)
   (nullable-int? [this] false)
   (parse-null-int [_] #{}))
@@ -118,7 +129,14 @@
          (= (:fn this) (:fn that))))
   Parser
   (d [this t]
-    (red (d (:parser this) t) fn))
+    (red (d (:parser this) t) (:fn this)))
+  (compact-int [this]
+    (cond
+     (red? (:parser this))
+     (red
+      (compact (:parser (:parser this)))
+      (comp (:fn this) (:fn (:parser this))))
+     :else (red (compact (:parser this)) (:fn this))))
   (empty-int? [this] (empty-p? (:parser this)))
   (nullable-int? [this]
     (nullable? (:parser this)))
@@ -132,36 +150,68 @@
   Parser
   (d [this t]
     (cat (d (:parser this) t) this))
+  (compact-int [this]
+    (star (compact (:parser this))))
   (empty-int? [_] false)
   (nullable-int? [this]
     (or (nullable? (:parser this))
         (empty-p? (:parser this))))
   (parse-null-int [this]
-    #{[]}))
+    #{'()}))
 
-(defrecord sequence-parser [first second]
+(defn- -is-seq [t]
+  "If t isn't a seq (a list), make it one"
+  (if (seq? t) t (list t)))
+
+(defn- -append [t l]
+  "Add t to the back of l, forcing either or both into listy-ness"
+  (cons (-is-seq l) (-is-seq t)))
+(defn- -prepend [t l]
+  "Add t to the front of l, forcing either or both into listy-ness"
+  (cons (-is-seq t) (-is-seq l)))
+
+(defrecord sequence-parser [fst snd]
   ComparableParser
   (eq [this that]
-    (and (eq (force (:first this)) (force (:first that)))
-         (eq (force (:second this)) (force (:second that)))))
+    (and (eq (force (:fst this)) (force (:fst that)))
+         (eq (force (:snd this)) (force (:snd that)))))
   Parser
   (d [this t]
-    (if (nullable? (force (:first this)))
-      (alt (cat (eps** (parse-null (force (:first this))))
-                (d (force (:second this)) t))
-           (cat (d (force (:first this)) t)
-                (force (:second this))))
-      (cat (d (force (:first this)) t) (force (:second this)))))
+    (let [fst (force (:fst this))
+          snd (force (:snd this))]
+      (if (nullable? fst)
+        (alt (cat (eps** (parse-null fst))
+                  (d snd t))
+             (cat (d fst t) snd))
+        (cat (d fst t) snd))))
+  (compact-int [this]
+    (let [fst (force (:fst this))
+          snd (force (:snd this))]
+      (cond
+       (empty-p? fst)
+       snd
+       (empty-p? snd)
+       fst
+       (singleton-parse? fst)
+       (let [t (first (parse-null fst))]
+         (red snd
+              (fn [w2] (-prepend t w2))))
+       (singleton-parse? snd)
+       (let [t (first (parse-null snd))]
+         (red fst
+              (fn [w1] (-append t w1))))
+       :else
+       this)))
   (empty-int? [this]
-    (or (empty-p? (force (:first this)))
-        (empty-p? (force (:second this)))))
+    (or (empty-p? (force (:fst this)))
+        (empty-p? (force (:snd this)))))
   (nullable-int? [this]
-    (and (nullable? (force (:first this)))
-         (nullable? (force (:second this)))))
+    (and (nullable? (force (:fst this)))
+         (nullable? (force (:snd this)))))
   (parse-null-int [this]
     (cart-prod
-     (parse-null (force (:first this)))
-     (parse-null (force (:second this)))
+     (parse-null (force (:fst this)))
+     (parse-null (force (:snd this)))
      (fn [a b] [a b]))))
 
 (defrecord union-parser [left right]
@@ -173,6 +223,18 @@
   (d [this t]
     (alt (d (force (:left this)) t)
          (d (force (:right this)) t)))
+  (compact-int [this]
+    (let [l-empty (eq (empty-p) (force (:left this)))
+          r-empty (eq (empty-p) (force (:right this)))]
+      (cond
+       (and l-empty r-empty)
+       (empty-p)
+       (and (not l-empty) r-empty)
+       (force (:left this))
+       (and l-empty (not r-empty))
+       (force (:right this))
+       :else
+       this)))
   (empty-int? [this]
     (and (empty-p? (force (:left this)))
          (empty-p? (force (:right this)))))
@@ -203,10 +265,13 @@
      (if parsers
        (sequence-parser. (delay a) (delay (apply cat parsers)))
        a)))
-(defn red [parser fn]
-  (red-parser. parser fn))
+(defn red [parser arity-1-fn]
+  (red-parser. parser arity-1-fn))
 (defn star [parser]
   (star-parser. parser))
+
+(defn red? [parser]
+  (instance? red-parser parser))
 
 (defn parse [parser input]
   (if (empty? input)
