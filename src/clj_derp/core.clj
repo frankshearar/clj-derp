@@ -165,7 +165,7 @@
 
 (defn- -append [t l]
   "Add t to the back of l, forcing either or both into listy-ness"
-  (cons (-is-seq l) (-is-seq t)))
+  (concat (-is-seq l) (-is-seq t)))
 (defn- -prepend [t l]
   "Add t to the front of l, forcing either or both into listy-ness"
   (cons (-is-seq t) (-is-seq l)))

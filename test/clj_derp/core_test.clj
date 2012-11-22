@@ -223,11 +223,11 @@
       (testing "for first parser"
         (let [c (compact (cat (eps* \a) (eps** #{\a \b})))]
           (is (red? c))
-          (is (= #{'((\a) \a) '((\a) \b)} (parse-null c)))))
+          (is (= #{'(\a \a) '(\a \b)} (parse-null c)))))
       (testing "for second parser"
         (let [c (compact (cat (eps** #{\a \b}) (eps* \b)))]
           (is (red? c))
-          (is (= #{'((\a) \b) '((\b) \b)} (parse-null c))))))
+          (is (= #{'(\a \b) '(\b \b)} (parse-null c))))))
     (testing "with empty subparsers"
       (testing "(first)"
         (is (eq (eps) (compact (cat (empty-p) (eps))))))
