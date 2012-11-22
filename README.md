@@ -2,9 +2,15 @@
 
 Yet another implementation of Matt Might and David Darais' derivatives of context free grammars. See the [Yacc Is Dead project](http://matt.might.net/articles/parsing-with-derivatives/).
 
+[![Build Status](https://secure.travis-ci.org/frankshearar/clj-derp.png?branch=master)](https://travis-ci.org/frankshearar/clj-derp)
+
 ## Usage
 
 FIXME
+
+## Limitations
+
+No support for cyclic grammars yet.
 
 ## License
 
