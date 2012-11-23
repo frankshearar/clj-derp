@@ -92,7 +92,7 @@
   (nullable-int? [this] false)
   (parse-null-int [_] #{}))
 
-(defrecord empty-string-parser [treeSet]
+(defrecord empty-string-parser [tree-set]
   ComparableParser
   (eq [this that]
     (= this that))
@@ -101,7 +101,7 @@
   (compact-int [this] this)
   (empty-int? [_] false)
   (nullable-int? [this] true)
-  (parse-null-int [_] treeSet))
+  (parse-null-int [_] tree-set))
 
 (defrecord literal-parser [token]
   ComparableParser
