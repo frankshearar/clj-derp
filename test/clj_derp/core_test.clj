@@ -12,6 +12,11 @@
 
 (deftest making-parsers
   (testing "Making"
+    (testing "literal parser"
+      (is (= (lit "a") (lit+ "a")))
+      (is (= (eps) (lit+)))
+      (is (= (lit "a") (lit+ "a")))
+      (is (= (lit+ "a" "b") (lit+ "a" "b"))))
     (testing "reduction parser"
       (let [p (eps* 1)
             fn (fn [x] (+ x 1))]
@@ -41,7 +46,10 @@
       (is (= (empty-p) (d (eps* "a") "anything"))))
     (testing "lit"
       (is (= (empty-p) (d (lit "a") "not a")))
-      (is (= (eps* "a") (d (lit "a") "a"))))
+      (is (= (eps* "a") (d (lit "a") "a")))
+      (is (= (eps* "a") (d (lit+ "a" "b") "a")))
+      (is (= (eps* "b") (d (lit+ "a" "b") "b")))
+      (is (= (empty-p) (d (lit+ "a" "b") "c"))))
     (testing "red"
       (let [fn (fn [x] (+ 1 x))]
         (is (= (red (eps* "a") fn) (d (red (lit "a") fn) "a")))))
@@ -77,7 +85,10 @@
       (is (not (eq (eps) (alt)))))
     (testing "lit"
       (is (eq (lit "a") (lit "a")))
-      (is (not (eq (lit "a") (lit "b")))))
+      (is (not (eq (lit "a") (lit "b"))))
+      (is (eq (lit+ "a" "b") (lit+ "a" "b")))
+      (is (eq (lit+ "a" "b") (lit+ "b" "a")))
+      (is (not (eq (lit+ "a" "b") (lit+ "b" "c")))))
     (testing "red"
       (let [fn identity]
         (is (eq (red (lit "a") fn) (red (lit "a") fn)))
@@ -112,7 +123,8 @@
       (is (nullable? (eps* "a")))
       (is (nullable? (eps** #{"a" "b"}))))
     (testing "of lit"
-      (is (not (nullable? (lit "a")))))
+      (is (not (nullable? (lit "a"))))
+      (is (not (nullable? (lit+ "a" "b")))))
     (testing "of red"
       (is (nullable? (red (eps* 1) (fn [x] (+ x 1)))))
       (is (not (nullable? (red (empty-p) (fn [_] 1))))))
@@ -146,7 +158,8 @@
   (testing "of eps*"
     (is (not (empty-p? (eps* "a")))))
   (testing "of lit"
-    (is (not (empty-p? (lit "a")))))
+    (is (not (empty-p? (lit "a"))))
+    (is (not (empty-p? (lit+ "a" "b")))))
   (testing "of red"
     (is (not (empty-p? (red (eps* 1) (fn [x] (+ 1 x))))))
     (is (empty-p? (red (empty-p) (fn [_] 1)))))
@@ -173,6 +186,7 @@
     (is (= #{nil} (parse-null (eps))))
     (is (= #{} (parse-null (empty-p))))
     (is (= #{} (parse-null (lit "a"))))
+    (is (= #{} (parse-null (lit+ "a" "b"))))
     (is (= #{"a"} (parse-null (eps* "a"))))
     (testing "of red"
       (is (= #{1 2} (parse-null (red (eps** #{0 1}) (fn [x] (+ 1 x)))))))
@@ -195,7 +209,9 @@
     (is (eq (eps* "a") (compact (eps* "a"))))
     (is (eq (eps** #{"a" "b"}) (compact (eps** #{"a" "b"})))))
   (testing "lit"
-    (is (eq (lit "a") (compact (lit "a")))))
+    (is (eq (lit "a") (compact (lit "a"))))
+    (is (eq (lit+ "a" "b") (compact (lit+ "a" "b"))))
+    )
   (testing "red"
     ;; Compaction of red is red of compacted subparser
     (is (eq (red (eps* "a") identity)
@@ -240,6 +256,8 @@
     (is (= #{} (parse (empty-p) ["a"])))
     (is (= #{nil} (parse (eps) '())))
     (is (= #{"a"} (parse (lit "a") ["a"])))
+    (is (= #{"a"} (parse (lit+ "a" "b") ["a"])))
+    (is (= #{"b"} (parse (lit+ "a" "b") ["b"])))
     (is (= #{'("a" ())} (parse (star (lit "a")) ["a"])))
     (is (= #{'("a" ("a" ()))} (parse (star (lit "a")) ["a" "a"])))))
 

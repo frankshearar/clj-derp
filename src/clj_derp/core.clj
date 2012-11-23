@@ -117,6 +117,22 @@
   (nullable-int? [this] false)
   (parse-null-int [_] #{}))
 
+(defrecord literal-set-parser [token-set]
+  ;; A parser that can consume one of a set of literals. You may think of
+  ;; (lit+ 1 2) as being an optimised form of (alt (lit 1) (lit 2)).
+  ComparableParser
+  (eq [this that]
+    (= this that))
+  Parser
+  (d [this t]
+    (if (contains? token-set t)
+      (eps* t)
+      (empty-p)))
+  (compact-int [this] this)
+  (empty-int? [_] false)
+  (nullable-int? [this] false)
+  (parse-null-int [_] #{}))
+
 (defrecord red-parser [parser fn]
   ComparableParser
   ;; There's a major limitation here: there is no = for
@@ -253,6 +269,11 @@
 ;; A temporary function until I find out the syntax for multimethods
 (defn eps** [token] (empty-string-parser. token))
 (defn lit [token] (literal-parser. token))
+(defn lit+ [& rest]
+  (case (count rest)
+    0 (eps)
+    1 (lit (first rest))
+    (literal-set-parser. (set rest))))
 (defn alt
   ([] (empty-p))
   ([a & parsers]
