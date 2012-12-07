@@ -276,7 +276,11 @@ and provides a simple API for parsing streams."}
          (red fst
               (fn [w1] (-append t w1))))
        :else
-       this)))
+       (let [c1 (compact fst)
+             c2 (compact snd)]
+         (if (= [c1 c2] [fst snd]) ; = effectively means pointer equality here
+           this
+           (cat c1 c2))))))
   (empty-int? [this]
     (or (empty-p? (force (:fst this)))
         (empty-p? (force (:snd this)))))
@@ -315,9 +319,9 @@ and provides a simple API for parsing streams."}
        (and l-empty r-empty)
        (empty-p)
        (and (not l-empty) r-empty)
-       (force (:left this))
+       (compact (force (:left this)))
        (and l-empty (not r-empty))
-       (force (:right this))
+       (compact (force (:right this)))
        :else
        this)))
   (empty-int? [this]

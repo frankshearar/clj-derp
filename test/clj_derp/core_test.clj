@@ -234,8 +234,14 @@
             (compact (alt (eps* "a") (eps* "b")))))
     (is (eq (empty-p) (compact (alt (empty-p) (empty-p)))))
     (is (eq (eps) (compact (alt (eps) (empty-p)))))
-    (is (eq (eps) (compact (alt (empty-p) (eps))))))
+    (is (eq (eps) (compact (alt (empty-p) (eps)))))
+    (testing "compacts deeply"
+      ;; Compaction recurs through the subparsers
+      (is (eq (lit "a") (compact (alt (alt (empty-p) (lit "a")) (empty-p)))))
+      (is (eq (lit "a") (compact (alt (empty-p) (alt (empty-p) (lit "a"))))))))
   (testing "cat"
+    (let [ab (cat (lit "a") (lit "b"))]
+      (is (= ab (compact ab))))
     ;; singleton parse -> red
     (testing "with singleton parses"
       (testing "for first parser"
@@ -250,7 +256,11 @@
       (testing "(first)"
         (is (eq (eps) (compact (cat (empty-p) (eps))))))
       (testing "(second)"
-        (is (eq (eps) (compact (cat (eps) (empty-p)))))))))
+        (is (eq (eps) (compact (cat (eps) (empty-p)))))))
+    (testing "compacts deeply"
+      ;; Compaction recurs through the subparsers
+      (is (eq (cat (lit "a") (lit "b")) (compact (cat (lit "a") (alt (empty-p) (lit "b"))))))
+      (is (eq (cat (lit "a") (lit "b")) (compact (cat (alt (empty-p) (lit "a"))(lit "b"))))))))
 
 (deftest parsing
   (testing "Basic parse tests"
