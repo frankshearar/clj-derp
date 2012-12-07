@@ -1,5 +1,10 @@
 (ns clj-derp.core
-  (:require [clojure.set :as set]))
+  ^{:author "Frank Shearar",
+    :doc
+"This file defines the derivative of a context free grammar,
+and provides a simple API for parsing streams."}
+  (:require [clojure.set :as set])
+  (:require [clojure.string :as string]))
 
 (defn cart-prod [set-one set-two concat-fn]
   "Return the Cartesian product of set-one and set-two."
@@ -11,7 +16,7 @@
         set-one)))
 
 (defmacro defn-fix [name bottom fn]
-  `(let* [*cache*# (atom {})
+  `(let* [*cache*# (atom {}) ;TODO: This will need to change to a weak ref cache.
        *changed?*# (atom false)
        *running?*# (atom false)
        *visited*# (atom {})]
@@ -57,7 +62,15 @@
 (defprotocol ComparableParser
   (eq [this that]))
 
-(def compact (memoize (fn [parser] (compact-int parser))))
+(defprotocol StructuralParser
+  "A means for a parser to expose its subparsers in a uniform manner."
+  (subparsers [this]))
+
+(defprotocol PrintableParser
+  (print-node [this int-map]
+    "Print this parser as part of a dotfile. int-map maps parsers to integers."))
+
+(def compact (memoize (fn [parser] (compact-int parser)))) ;TODO: This will need to change to a weak ref cache.
 (defn-fix parse-null {} (fn [parser] (parse-null-int parser)))
 (defn-fix nullable? false (fn [parser] (nullable-int? parser)))
 (defn-fix empty-p? false (fn [parser] (empty-int? parser)))
@@ -85,6 +98,11 @@
   ComparableParser
   (eq [this that]
     (= this that))
+  StructuralParser
+  (subparsers [_] [])
+  PrintableParser
+  (print-node [this int-map]
+    (format "\"%s\" [label=\"empty\"]" (get int-map this :not-found)))
   Parser
   (d [this _] this)
   (compact-int [this] this)
@@ -96,6 +114,11 @@
   ComparableParser
   (eq [this that]
     (= this that))
+  StructuralParser
+  (subparsers [_] [])
+  PrintableParser
+  (print-node [this int-map]
+    (format "\"%s\" [shape=\"record\", label=\"eps* | %s\"]" (get int-map this) tree-set))
   Parser
   (d [this _] (empty-p))
   (compact-int [this] this)
@@ -107,6 +130,11 @@
   ComparableParser
   (eq [this that]
     (= this that))
+  StructuralParser
+  (subparsers [_] [])
+  PrintableParser
+  (print-node [this int-map]
+    (format "\"%s\" [shape=\"record\", label=\"token | %s\"]" (get int-map this) (:token this)))
   Parser
   (d [this t]
     (if (= token t)
@@ -123,6 +151,11 @@
   ComparableParser
   (eq [this that]
     (= this that))
+  StructuralParser
+  (subparsers [_] [])
+  PrintableParser
+  (print-node [this int-map]
+    (format "\"%s\" [shape=\"record\", label=\"token | %s\"]" (get int-map this) (:token-set this)))
   Parser
   (d [this t]
     (if (contains? token-set t)
@@ -143,6 +176,14 @@
   (eq [this that]
     (and (eq (:parser this) (:parser that))
          (= (:fn this) (:fn that))))
+  StructuralParser
+  (subparsers [this] [(:parser this)])
+  PrintableParser
+  (print-node [this int-map]
+    (let [this-n (get int-map this)
+          sub-n (get int-map (:parser this))]
+      (string/join "\n" [(format "\"%s\" [label=\"red\"]" this-n)
+                         (format "\"%s\" -> \"%s\"" this-n sub-n)])))
   Parser
   (d [this t]
     (red (d (:parser this) t) (:fn this)))
@@ -163,6 +204,14 @@
   ComparableParser
   (eq [this that]
     (= this that))
+  StructuralParser
+  (subparsers [this] [(:parser this)])
+  PrintableParser
+  (print-node [this int-map]
+    (let [this-n (get int-map this)
+          sub-n (get int-map (:parser this))]
+      (string/join "\n" [(format "\"%s\" [label=\"star\"]" this-n)
+                         (format "\"%s\" -> \"%s\"" this-n sub-n)])))
   Parser
   (d [this t]
     (cat (d (:parser this) t) this))
@@ -176,7 +225,7 @@
     #{'()}))
 
 (defn- -is-seq [t]
-  "If t isn't a seq (a list), make it one"
+  "If t isn't a seq (a list), make it one. Can't use sequence because t might not be a collection."
   (if (seq? t) t (list t)))
 
 (defn- -append [t l]
@@ -191,7 +240,17 @@
   (eq [this that]
     (and (eq (force (:fst this)) (force (:fst that)))
          (eq (force (:snd this)) (force (:snd that)))))
-  Parser
+  StructuralParser
+  (subparsers [this] [(force (:fst this)) (force (:snd this))])
+  PrintableParser
+  (print-node [this int-map]
+    (let [this-n (get int-map this)
+          fst-n (get int-map (force (:fst this)))
+          snd-n (get int-map (force (:snd this)))]
+      (string/join "\n" [(format "\"%s\" [shape=\"none\", margin=0, label=<<table border=\"0\" cellborder=\"1\" cellspacing=\"0\" cellpadding=\"4\"><tr><td colspan=\"2\">seq</td></tr><tr><td port=\"L\">L</td><td port=\"R\">R</td></tr></table>>]" this-n)
+                         (format "\"%s\":L -> \"%s\"" this-n fst-n)
+                         (format "\"%s\":R -> \"%s\"" this-n snd-n)])))
+    Parser
   (d [this t]
     (let [fst (force (:fst this))
           snd (force (:snd this))]
@@ -235,6 +294,16 @@
   (eq [this that]
     (and (eq (force (:left this)) (force (:left that)))
          (eq (force (:right this)) (force (:right that)))))
+  StructuralParser
+  (subparsers [this] [(force (:left this)) (force (:right this))])
+  PrintableParser
+  (print-node [this int-map]
+    (let [this-n (get int-map this)
+          left-n (get int-map (force (:left this)))
+          right-n (get int-map (force (:right this)))]
+      (string/join "\n" [(format "\"%s\" [label=\"or\"]" this-n)
+                         (format "\"%s\" -> \"%s\"" this-n left-n)
+                         (format "\"%s\" -> \"%s\"" this-n right-n)])))
   Parser
   (d [this t]
     (alt (d (force (:left this)) t)
@@ -263,32 +332,50 @@
      (parse-null (force (:right p))))))
 
 ;; Utility constructors
-(defn empty-p [] (empty-parser.))
-(defn eps [] (empty-string-parser. #{nil}))
-(defn eps* [token] (empty-string-parser. #{token}))
+(defn empty-p []
+  "The empty language parser."
+  (empty-parser.))
+(defn eps []
+  "That parser whose language is just the empty string."
+  (empty-string-parser. #{nil}))
+(defn eps* [token]
+  "A parser that stores a partial parse tree. You probably don't need to use this function."
+  (empty-string-parser. #{token}))
 ;; A temporary function until I find out the syntax for multimethods
-(defn eps** [token] (empty-string-parser. token))
-(defn lit [token] (literal-parser. token))
+(defn eps** [token-set]
+  "Like eps*, but takes a set of parse trees."
+  (empty-string-parser. token-set))
+(defn lit [token]
+  "A parser that consumes exactly this token."
+  (literal-parser. token))
 (defn lit+ [& rest]
+  "Given any number of tokens, make a parser that can accept any of them."
   (case (count rest)
     0 (eps)
     1 (lit (first rest))
     (literal-set-parser. (set rest))))
+(defn lit* [l]
+  "Given a seq of tokens, make a parser that can accept any of them"
+  (apply lit+ l))
 (defn alt
+  "Make a parser that can act as any of a number of subparsers"
   ([] (empty-p))
   ([a & parsers]
      (if parsers
        (union-parser. (delay a) (delay (apply alt parsers)))
        a)))
 (defn cat
+  "Define a parser whose subparsers each consume things in sequence"
   ([] (empty-p))
   ([a & parsers]
      (if parsers
        (sequence-parser. (delay a) (delay (apply cat parsers)))
        a)))
 (defn red [parser arity-1-fn]
+  "Define a parser that runs some function over the parse trees of its subparsers. This is the hook for any semantic actions you might need."
   (red-parser. parser arity-1-fn))
 (defn star [parser]
+  "The Kleene star parser"
   (star-parser. parser))
 
 (defn red? [parser]
@@ -298,3 +385,38 @@
   (if (empty? input)
     (parse-null parser)
     (parse (d parser (first input)) (rest input))))
+
+(defn in? [needle haystack]
+  (some #(= needle %) haystack))
+
+(defn not-in? [needle haystack]
+  (not (in? needle haystack)))
+
+(defn- search-1 [p fn seed cache]
+  "Apply fn to each subparser in p in pre-order, returning the collected results in a dictionary mapping p to (fn p). Skip elements in cache."
+  (let [val (apply fn [p])]
+    (assoc (merge
+            seed
+            (reduce merge (map #(search-1 % fn seed (conj cache p))
+                               (filter #(not-in? % cache) (subparsers p)))))
+      p
+      val)))
+
+(defn search [p fn]
+  "A cycle-safe map over p."
+  (let [visited #{}]
+    (search-1 p fn {} visited)))
+
+(defn mark-uniquely [parser]
+  "Recursively 'mark' the subparsers of p by associating each parser with a unique integer"
+  (let [n (atom -1)]
+    (search parser (fn [p] (swap! n inc)))))
+
+(defn print-as-digraph [parser]
+  "Return a parser in a dot format string."
+  (let [int-map (mark-uniquely parser)]
+    (string/join "\n"
+                 (concat
+                  ["digraph {"]
+                  (vals (search parser #(print-node % int-map)))
+                  ["}"]))))

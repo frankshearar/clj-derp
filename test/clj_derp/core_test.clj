@@ -1,6 +1,7 @@
 (ns clj-derp.core-test
   (:use clojure.test
-        clj-derp.core))
+        clj-derp.core)
+  (:require [clojure.string :as str]))
 
 (deftest cartesian-product-of-sets
   (let [cat (fn [a b] [a b])]
@@ -16,7 +17,8 @@
       (is (= (lit "a") (lit+ "a")))
       (is (= (eps) (lit+)))
       (is (= (lit "a") (lit+ "a")))
-      (is (= (lit+ "a" "b") (lit+ "a" "b"))))
+      (is (= (lit+ "a" "b") (lit+ "a" "b")))
+      (is (= (lit+ "a" "b") (lit* ["a" "b"]))))
     (testing "reduction parser"
       (let [p (eps* 1)
             fn (fn [x] (+ x 1))]
@@ -281,3 +283,76 @@
     (is (not (red? (star (lit "a")))))
     (is (not (red? (alt (eps) (eps)))))
     (is (not (red? (cat (eps) (eps)))))))
+
+(deftest testing-in
+  (is (not (in? 1 [])))
+  (is (not (in? 1 [2])))
+  (is (in? 1 [1]))
+  (is (not (in? 1 [2 3 4])))
+  (is (in? 1 [2 1 3 4])))
+
+(deftest testing-not-in
+  (is (not-in? 1 []))
+  (is (not-in? 1 [2]))
+  (is (not (not-in? 1 [1])))
+  (is (not-in? 1 [2 3 4]))
+  (is (not (not-in? 1 [2 1 3 4]))))
+
+(deftest structural-inspection
+  (is (= [] (subparsers (empty-p))))
+  (is (= [] (subparsers (eps))))
+  (is (= [] (subparsers (lit "a"))))
+  (is (= [(eps)]) (subparsers (red (eps) identity)))
+  (is (= [(eps)] (subparsers (star (eps)))))
+  (let [a (lit "a")
+        b (lit "b")]
+    (is (= [a b] (subparsers (alt a b))))
+    (is (= [a b] (subparsers (cat a b))))))
+
+(extend-type clojure.lang.IPersistentVector
+  ComparableParser
+  (eq [this that] (some #(not (eq %1 %2)) (map eq this that))))
+
+(deftest traversing
+  (is (= [(empty-p)] (keys (search (empty-p) identity))))
+  (is (= [(eps)] (keys (search (eps) identity))))
+  (let [a (lit "a")
+        b (lit "b")
+        a+b (alt a b)
+        ab (cat a b)]
+    (is (= [a+b a b] (keys (search a+b identity))))
+    (is (= [ab a b] (keys (search ab identity))))))
+
+(deftest testing-mark-uniquely
+  (let [a (empty-p)
+        b (eps)
+        a+b (alt (empty-p) (eps))
+        marked (mark-uniquely a+b)]
+    (is (= 0 (get marked a+b)))
+    (is (= 1 (get marked a)))
+    (is (= 2 (get marked b)))))
+
+(defn expect-print [s p]
+  (let [int-map (mark-uniquely p)]
+    (is (= s (print-node p int-map)))))
+
+(deftest printing
+  (expect-print "\"0\" [label=\"empty\"]" (empty-p))
+  (expect-print "\"0\" [shape=\"record\", label=\"eps* | #{\"a\"}\"]" (eps* "a"))
+  (expect-print "\"0\" [shape=\"record\", label=\"eps* | #{\"a\" \"b\"}\"]" (eps** #{"a" "b"}))
+  (expect-print "\"0\" [shape=\"record\", label=\"eps* | #{nil}\"]" (eps))
+  (expect-print "\"0\" [shape=\"record\", label=\"token | 1\"]" (lit 1))
+  (expect-print "\"0\" [shape=\"record\", label=\"token | #{1 2}\"]" (lit+ 1 2))
+  (expect-print "\"0\" [label=\"red\"]\n\"0\" -> \"1\"" (red (empty-p) identity))
+  (expect-print "\"0\" [label=\"star\"]\n\"0\" -> \"1\"" (star (empty-p)))
+  (expect-print (str/join "\n"
+                          ["\"0\" [label=\"or\"]"
+                           "\"0\" -> \"1\""
+                           "\"0\" -> \"2\""])
+                (alt (empty-p) (eps* "a")))
+  (expect-print (str/join "\n"
+                          ["\"0\" [shape=\"none\", margin=0, label=<<table border=\"0\" cellborder=\"1\" cellspacing=\"0\" cellpadding=\"4\"><tr><td colspan=\"2\">seq</td></tr><tr><td port=\"L\">L</td><td port=\"R\">R</td></tr></table>>]"
+                           "\"0\":L -> \"1\""
+                           "\"0\":R -> \"2\""])
+                (cat (empty-p) (eps* "a")))
+  (is (= "digraph {\n\"0\" [shape=\"none\", margin=0, label=<<table border=\"0\" cellborder=\"1\" cellspacing=\"0\" cellpadding=\"4\"><tr><td colspan=\"2\">seq</td></tr><tr><td port=\"L\">L</td><td port=\"R\">R</td></tr></table>>]\n\"0\":L -> \"1\"\n\"0\":R -> \"4\"\n\"3\" [shape=\"record\", label=\"token | 2\"]\n\"2\" [shape=\"record\", label=\"token | 1\"]\n\"1\" [label=\"or\"]\n\"1\" -> \"2\"\n\"1\" -> \"3\"\n\"4\" [label=\"empty\"]\n}")) (print-as-digraph (cat (alt (lit 1) (lit 2)) (empty-p))))
