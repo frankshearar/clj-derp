@@ -70,6 +70,10 @@ and provides a simple API for parsing streams."}
   (print-node [this int-map]
     "Print this parser as part of a dotfile. int-map maps parsers to integers."))
 
+(defprotocol SettableParser
+  (set-ref! [this parser]
+    "Set the reference of a delegate-parser."))
+
 (def compact (memoize (fn [parser] (compact-int parser)))) ;TODO: This will need to change to a weak ref cache.
 (defn-fix parse-null {} (fn [parser] (parse-null-int parser)))
 (defn-fix nullable? false (fn [parser] (nullable-int? parser)))
@@ -93,6 +97,23 @@ and provides a simple API for parsing streams."}
 ;; We have to forward declare helpers like these because we use them
 ;; in the defrecords.
 (declare red?)
+
+(defrecord delegate-parser [ref]
+  ComparableParser
+  (eq [this that]
+    (eq (:ref this) that))
+  StructuralParser
+  (subparsers [this]
+    (subparsers (deref (:ref this))))
+  SettableParser
+  (set-ref! [this new-parser-ref]
+    (swap! (:ref this) (fn [_] new-parser-ref)))
+  Parser
+  (d [this t] (d (:ref this) t))
+  (compact-int [this] (compact (:ref this)))
+  (empty-int? [this] (empty-int? (:ref this)))
+  (nullable-int? [this] (nullable-int? (:ref this)))
+  (parse-null-int [this] (parse-null-int (:ref this))))
 
 (defrecord empty-parser []
   ComparableParser
@@ -381,6 +402,12 @@ and provides a simple API for parsing streams."}
 (defn star [parser]
   "The Kleene star parser"
   (star-parser. parser))
+(defn -->
+  ([] (delegate-parser. (atom nil)))
+  ([parser] (delegate-parser. (atom parser))))
+
+(defn delegate? [parser]
+  (instance? delegate-parser parser))
 
 (defn red? [parser]
   (instance? red-parser parser))

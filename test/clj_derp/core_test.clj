@@ -27,6 +27,11 @@
     (testing "star parser"
       (let [p (eps* 1)]
         (is (= p (:parser (star p))))))
+    (testing "delegate"
+      (is (delegate? (-->)))
+      (let [p (lit "a")
+            dp (--> p)]
+        (is (= p (deref (:ref dp)))))) ; <-- :ref's an atom, after all.
     (testing "sequence parser"
       (is (= (empty-p) (cat)))
       (is (= (lit "a") (cat (lit "a"))))
@@ -284,7 +289,16 @@
     (is (not (singleton-parse? (alt (eps* "a") (eps* "b")))))))
 
 (deftest testing-classifiers
-  (testing "red"
+  (testing "delegate?"
+    (is (delegate? (-->)))
+    (is (not (delegate? (empty-p))))
+    (is (not (delegate? (eps))))
+    (is (not (delegate? (lit "a"))))
+    (is (not (delegate? (star (eps)))))
+    (is (not (delegate? (red (eps) identity))))
+    (is (not (delegate? (alt (eps) (eps)))))
+    (is (not (delegate? (cat (eps) (eps))))))
+  (testing "red?"
     (is (red? (red (eps) identity)))
     (is (not (red? (empty-p))))
     (is (not (red? (eps))))
@@ -314,6 +328,7 @@
   (is (= [] (subparsers (lit "a"))))
   (is (= [(eps)]) (subparsers (red (eps) identity)))
   (is (= [(eps)] (subparsers (star (eps)))))
+  (is (= [(eps)]) (subparsers (--> (eps))))
   (let [a (lit "a")
         b (lit "b")]
     (is (= [a b] (subparsers (alt a b))))
