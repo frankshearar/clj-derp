@@ -220,7 +220,7 @@
             (compact (red (eps* "a") identity))))
     (is (eq (red (eps* "a") identity)
             (compact (red (alt (empty-p) (eps* "a")) identity))))
-    (testing "-red -> red"
+    (testing "red-red -> red"
       (let [inner-fn (fn [a] (+ a 1))
             outer-fn (fn [a] (* a 2))
             red (compact (red (red (eps* 1) inner-fn) outer-fn))]
