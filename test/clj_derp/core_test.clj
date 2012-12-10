@@ -270,8 +270,9 @@
     (is (= #{"a"} (parse (lit "a") ["a"])))
     (is (= #{"a"} (parse (lit+ "a" "b") ["a"])))
     (is (= #{"b"} (parse (lit+ "a" "b") ["b"])))
-    (is (= #{'("a" ())} (parse (star (lit "a")) ["a"])))
-    (is (= #{'("a" ("a" ()))} (parse (star (lit "a")) ["a" "a"])))))
+    (is (= #{["a" []]} (parse (star (lit "a")) ["a"])))
+    (is (= #{["a" ["a" []]]} (parse (star (lit "a")) ["a" "a"])))
+    (is (= #{["a" "a" "a"]} (parse (red (star (lit "a")) flatten) ["a" "a" "a"])))))
 
 (deftest singleton-parse-test
   (testing "no parse trees"
