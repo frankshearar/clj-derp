@@ -4,7 +4,8 @@
 "This file defines the derivative of a context free grammar,
 and provides a simple API for parsing streams."}
   (:require [clojure.set :as set])
-  (:require [clojure.string :as string]))
+  (:require [clojure.string :as string])
+  (:require [clojure.core.cache :as cache]))
 
 (defn cart-prod [set-one set-two concat-fn]
   "Return the Cartesian product of set-one and set-two."
@@ -16,13 +17,13 @@ and provides a simple API for parsing streams."}
         set-one)))
 
 (defmacro defn-fix [name bottom fn]
-  `(let* [*cache*# (atom {}) ;TODO: This will need to change to a weak ref cache.
+  `(let* [*cache*# (atom (cache/soft-cache-factory {}))
        *changed?*# (atom false)
        *running?*# (atom false)
        *visited*# (atom {})]
       (defn ~name [x#]
-        (let [cached?# (contains? (deref *cache*#) x#)
-              cached# (get (deref *cache*#) x#)
+        (let [cached?# (cache/has? (deref *cache*#) x#)
+              cached# (cache/lookup (deref *cache*#) x#)
               run?# (deref *running?*#)]
           (cond
            (and cached?# (not run?#))
@@ -35,7 +36,9 @@ and provides a simple API for parsing streams."}
              (let [new-val# (apply ~fn [x#])]
                (when (not (= new-val# cached#))
                  (swap! *changed?*# (fn [_#] true))
-                 (swap! *cache*# assoc x# new-val#))
+                 (swap! *cache*# (fn [c#] (if cached?#
+                                            (cache/hit c# x#)
+                                            (cache/miss c# x# new-val#)))))
                new-val#))
            (and (not cached?#) (not run?#))
            (do
