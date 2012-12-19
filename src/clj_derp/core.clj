@@ -52,6 +52,21 @@ and provides a simple API for parsing streams."}
                  (swap! v# (fn [_#] (apply ~fn [x#]))))
                (deref v#))))))))
 
+(defn soft-memoize [f]
+  (let [cache (atom (cache/soft-cache-factory {}))
+        recalc (fn [args]
+                 (let [answer (apply f args)]
+                   (swap! cache (fn [c] (cache/miss c args answer)))
+                   answer))]
+    (fn [& args]
+      (if (cache/has? @cache args)
+        (do
+          (swap! cache (fn [c] (cache/hit c args)))
+          (if-let [answer (cache/lookup @cache args)]
+            answer
+            (recalc args)))
+        (recalc args)))))
+
 (defprotocol Parser
   (d [this token])
   (compact-int [this])
@@ -73,7 +88,7 @@ and provides a simple API for parsing streams."}
   (print-node [this int-map]
     "Print this parser as part of a dotfile. int-map maps parsers to integers."))
 
-(def compact (memoize (fn [parser] (compact-int parser)))) ;TODO: This will need to change to a weak ref cache.
+(def compact (soft-memoize (fn [parser] (compact-int parser))))
 (defn-fix parse-null {} (fn [parser] (parse-null-int parser)))
 (defn-fix nullable? false (fn [parser] (nullable-int? parser)))
 (defn-fix empty-p? false (fn [parser] (empty-int? parser)))

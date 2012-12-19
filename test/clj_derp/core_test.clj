@@ -3,14 +3,6 @@
         clj-derp.core)
   (:require [clojure.string :as str]))
 
-(deftest cartesian-product-of-sets
-  (let [cat (fn [a b] [a b])]
-    (is (= #{} (cart-prod #{} #{} cat)))
-    (is (= #{} (cart-prod #{} #{1} cat)))
-    (is (= #{} (cart-prod #{1} #{} cat)))
-    (is (= #{[1 2]} (cart-prod #{1} #{2} cat)))
-    (is (= #{[:a 1] [:a 2] [:b 1] [:b 2]} (cart-prod #{:a :b} #{1 2} cat)))))
-
 (deftest making-parsers
   (testing "Making"
     (testing "literal parser"
@@ -37,6 +29,18 @@
       (is (= (lit "it") (alt (lit "it"))))
       (is (= (lit "left") (force (:left (alt (lit "left") (lit "right"))))))
       (is (= (lit "right") (force (:right (alt (lit "left") (lit "right")))))))))
+
+(deftest parsing
+  (testing "Basic parse tests"
+    (is (= #{} (parse (empty-p) '())))
+    (is (= #{} (parse (empty-p) ["a"])))
+    (is (= #{nil} (parse (eps) '())))
+    (is (= #{"a"} (parse (lit "a") ["a"])))
+    (is (= #{"a"} (parse (lit+ "a" "b") ["a"])))
+    (is (= #{"b"} (parse (lit+ "a" "b") ["b"])))
+    (is (= #{["a" []]} (parse (star (lit "a")) ["a"])))
+    (is (= #{["a" ["a" []]]} (parse (star (lit "a")) ["a" "a"])))
+    (is (= #{["a" "a" "a"]} (parse (red (star (lit "a")) flatten) ["a" "a" "a"])))))
 
 (deftest deriving
   (testing "Derivative of"
@@ -69,51 +73,6 @@
       (testing "when first parser not nullable"
         (is (eq (cat (eps* "a") (lit "b"))
                 (d (cat (lit "a") (lit "b")) "a")))))))
-
-(deftest comparing
-  (testing "Comparing"
-    (testing "empty"
-      (is (eq (empty-p) (empty-p)))
-      (is (not (eq (empty-p) (eps))))
-      (is (not (eq (empty-p) (eps* "a"))))
-      (is (not (eq (empty-p) (lit "a"))))
-      (is (not (eq (empty-p) (alt (lit "a") (lit "b"))))))
-    (testing "eps"
-      (is (eq (eps) (eps)))
-      (is (eq (eps* "a") (eps* "a")))
-      (is (eq (eps** #{"a" "b"}) (eps** #{"a" "b"})))
-      (is (not (eq (eps) (eps* "a"))))
-      (is (not (eq (eps) (lit "a"))))
-      (is (not (eq (eps) (alt)))))
-    (testing "lit"
-      (is (eq (lit "a") (lit "a")))
-      (is (not (eq (lit "a") (lit "b"))))
-      (is (eq (lit+ "a" "b") (lit+ "a" "b")))
-      (is (eq (lit+ "a" "b") (lit+ "b" "a")))
-      (is (not (eq (lit+ "a" "b") (lit+ "b" "c")))))
-    (testing "red"
-      (let [fn identity]
-        (is (eq (red (lit "a") fn) (red (lit "a") fn)))
-        (is (not (eq (red (lit "a") fn)
-                     (red (lit "b") fn))))
-        (is (not (eq (red (lit "a") fn)
-                     (red (lit "a") (comp fn identity)))))))
-    (testing "star"
-      (is (eq (star (lit "a")) (star (lit "a"))))
-      (is (not (eq (star (lit "a")) (star (lit "b"))))))
-    (testing "sequences"
-      (is (eq (cat) (cat)))
-      (is (eq (cat (lit "a")) (cat (lit "a"))))
-      (is (eq (cat (alt (lit "a") (lit "b")) (eps))
-              (cat (alt (lit "a") (lit "b")) (eps))))
-      (is (not (eq (cat (lit "a")) (cat (lit "b")))))
-      (is (not (eq (cat (eps) (lit "a")) (cat (eps) (lit "b"))))))
-    (testing "unions"
-      (is (eq (alt) (alt)))
-      (is (eq (alt (empty-p)) (alt (empty-p))))
-      (is (eq (alt (lit "a") (lit "b")) (alt (lit "a") (lit "b"))))
-      (is (not (eq (alt (lit "a")) (alt (lit "b")))))
-      (is (not (eq (alt (eps) (lit "a")) (alt (eps) (lit "b"))))))))
 
 (deftest nullability
   (testing "Nullability"
@@ -212,8 +171,7 @@
     (is (eq (eps** #{"a" "b"}) (compact (eps** #{"a" "b"})))))
   (testing "lit"
     (is (eq (lit "a") (compact (lit "a"))))
-    (is (eq (lit+ "a" "b") (compact (lit+ "a" "b"))))
-    )
+    (is (eq (lit+ "a" "b") (compact (lit+ "a" "b")))))
   (testing "red"
     ;; Compaction of red is red of compacted subparser
     (is (eq (red (eps* "a") identity)
@@ -262,18 +220,6 @@
       (is (eq (cat (lit "a") (lit "b")) (compact (cat (lit "a") (alt (empty-p) (lit "b"))))))
       (is (eq (cat (lit "a") (lit "b")) (compact (cat (alt (empty-p) (lit "a"))(lit "b"))))))))
 
-(deftest parsing
-  (testing "Basic parse tests"
-    (is (= #{} (parse (empty-p) '())))
-    (is (= #{} (parse (empty-p) ["a"])))
-    (is (= #{nil} (parse (eps) '())))
-    (is (= #{"a"} (parse (lit "a") ["a"])))
-    (is (= #{"a"} (parse (lit+ "a" "b") ["a"])))
-    (is (= #{"b"} (parse (lit+ "a" "b") ["b"])))
-    (is (= #{["a" []]} (parse (star (lit "a")) ["a"])))
-    (is (= #{["a" ["a" []]]} (parse (star (lit "a")) ["a" "a"])))
-    (is (= #{["a" "a" "a"]} (parse (red (star (lit "a")) flatten) ["a" "a" "a"])))))
-
 (deftest singleton-parse-test
   (testing "no parse trees"
     (is (not (singleton-parse? (empty-p)))))
@@ -308,6 +254,51 @@
   (is (not (not-in? 1 [1])))
   (is (not-in? 1 [2 3 4]))
   (is (not (not-in? 1 [2 1 3 4]))))
+
+(deftest comparing
+  (testing "Comparing"
+    (testing "empty"
+      (is (eq (empty-p) (empty-p)))
+      (is (not (eq (empty-p) (eps))))
+      (is (not (eq (empty-p) (eps* "a"))))
+      (is (not (eq (empty-p) (lit "a"))))
+      (is (not (eq (empty-p) (alt (lit "a") (lit "b"))))))
+    (testing "eps"
+      (is (eq (eps) (eps)))
+      (is (eq (eps* "a") (eps* "a")))
+      (is (eq (eps** #{"a" "b"}) (eps** #{"a" "b"})))
+      (is (not (eq (eps) (eps* "a"))))
+      (is (not (eq (eps) (lit "a"))))
+      (is (not (eq (eps) (alt)))))
+    (testing "lit"
+      (is (eq (lit "a") (lit "a")))
+      (is (not (eq (lit "a") (lit "b"))))
+      (is (eq (lit+ "a" "b") (lit+ "a" "b")))
+      (is (eq (lit+ "a" "b") (lit+ "b" "a")))
+      (is (not (eq (lit+ "a" "b") (lit+ "b" "c")))))
+    (testing "red"
+      (let [fn identity]
+        (is (eq (red (lit "a") fn) (red (lit "a") fn)))
+        (is (not (eq (red (lit "a") fn)
+                     (red (lit "b") fn))))
+        (is (not (eq (red (lit "a") fn)
+                     (red (lit "a") (comp fn identity)))))))
+    (testing "star"
+      (is (eq (star (lit "a")) (star (lit "a"))))
+      (is (not (eq (star (lit "a")) (star (lit "b"))))))
+    (testing "sequences"
+      (is (eq (cat) (cat)))
+      (is (eq (cat (lit "a")) (cat (lit "a"))))
+      (is (eq (cat (alt (lit "a") (lit "b")) (eps))
+              (cat (alt (lit "a") (lit "b")) (eps))))
+      (is (not (eq (cat (lit "a")) (cat (lit "b")))))
+      (is (not (eq (cat (eps) (lit "a")) (cat (eps) (lit "b"))))))
+    (testing "unions"
+      (is (eq (alt) (alt)))
+      (is (eq (alt (empty-p)) (alt (empty-p))))
+      (is (eq (alt (lit "a") (lit "b")) (alt (lit "a") (lit "b"))))
+      (is (not (eq (alt (lit "a")) (alt (lit "b")))))
+      (is (not (eq (alt (eps) (lit "a")) (alt (eps) (lit "b"))))))))
 
 (deftest structural-inspection
   (is (= [] (subparsers (empty-p))))
@@ -367,3 +358,11 @@
                            "\"0\":R -> \"2\""])
                 (cat (empty-p) (eps* "a")))
   (is (= "digraph {\n\"0\" [shape=\"none\", margin=0, label=<<table border=\"0\" cellborder=\"1\" cellspacing=\"0\" cellpadding=\"4\"><tr><td colspan=\"2\">seq</td></tr><tr><td port=\"L\">L</td><td port=\"R\">R</td></tr></table>>]\n\"0\":L -> \"1\"\n\"0\":R -> \"4\"\n\"3\" [shape=\"record\", label=\"token | 2\"]\n\"2\" [shape=\"record\", label=\"token | 1\"]\n\"1\" [label=\"or\"]\n\"1\" -> \"2\"\n\"1\" -> \"3\"\n\"4\" [label=\"empty\"]\n}")) (print-as-digraph (cat (alt (lit 1) (lit 2)) (empty-p))))
+
+(deftest cartesian-product-of-sets
+  (let [cat (fn [a b] [a b])]
+    (is (= #{} (cart-prod #{} #{} cat)))
+    (is (= #{} (cart-prod #{} #{1} cat)))
+    (is (= #{} (cart-prod #{1} #{} cat)))
+    (is (= #{[1 2]} (cart-prod #{1} #{2} cat)))
+    (is (= #{[:a 1] [:a 2] [:b 1] [:b 2]} (cart-prod #{:a :b} #{1 2} cat)))))
