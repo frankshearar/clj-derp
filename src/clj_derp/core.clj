@@ -68,7 +68,7 @@ and provides a simple API for parsing streams."}
         (recalc args)))))
 
 (defprotocol Parser
-  (d [this token])
+  (d-int [this token])
   (compact-int [this])
   (empty-int? [this])
   (nullable-int? [this])
@@ -89,6 +89,7 @@ and provides a simple API for parsing streams."}
     "Print this parser as part of a dotfile. int-map maps parsers to integers."))
 
 (def compact (soft-memoize (fn [parser] (compact-int parser))))
+(def d (soft-memoize (fn [parser token] (d-int parser token))))
 (defn-fix parse-null {} (fn [parser] (parse-null-int parser)))
 (defn-fix nullable? false (fn [parser] (nullable-int? parser)))
 (defn-fix empty-p? false (fn [parser] (empty-int? parser)))
@@ -122,7 +123,7 @@ and provides a simple API for parsing streams."}
   (print-node [this int-map]
     (format "\"%s\" [label=\"empty\"]" (get int-map this :not-found)))
   Parser
-  (d [this _] this)
+  (d-int [this _] this)
   (compact-int [this] this)
   (empty-int? [_] true)
   (nullable-int? [this] false)
@@ -138,7 +139,7 @@ and provides a simple API for parsing streams."}
   (print-node [this int-map]
     (format "\"%s\" [shape=\"record\", label=\"eps* | %s\"]" (get int-map this) tree-set))
   Parser
-  (d [this _] (empty-p))
+  (d-int [this _] (empty-p))
   (compact-int [this] this)
   (empty-int? [_] false)
   (nullable-int? [this] true)
@@ -154,7 +155,7 @@ and provides a simple API for parsing streams."}
   (print-node [this int-map]
     (format "\"%s\" [shape=\"record\", label=\"token | %s\"]" (get int-map this) (:token this)))
   Parser
-  (d [this t]
+  (d-int [this t]
     (if (= token t)
       (eps* token)
       (empty-p)))
@@ -175,7 +176,7 @@ and provides a simple API for parsing streams."}
   (print-node [this int-map]
     (format "\"%s\" [shape=\"record\", label=\"token | %s\"]" (get int-map this) (:token-set this)))
   Parser
-  (d [this t]
+  (d-int [this t]
     (if (contains? token-set t)
       (eps* t)
       (empty-p)))
@@ -203,7 +204,7 @@ and provides a simple API for parsing streams."}
       (string/join "\n" [(format "\"%s\" [label=\"red\"]" this-n)
                          (format "\"%s\" -> \"%s\"" this-n sub-n)])))
   Parser
-  (d [this t]
+  (d-int [this t]
     (red (d (:parser this) t) (:fn this)))
   (compact-int [this]
     (cond
@@ -231,7 +232,7 @@ and provides a simple API for parsing streams."}
       (string/join "\n" [(format "\"%s\" [label=\"star\"]" this-n)
                          (format "\"%s\" -> \"%s\"" this-n sub-n)])))
   Parser
-  (d [this t]
+  (d-int [this t]
     (cat (d (:parser this) t) this))
   (compact-int [this]
     (star (compact (:parser this))))
@@ -269,7 +270,7 @@ and provides a simple API for parsing streams."}
                          (format "\"%s\":L -> \"%s\"" this-n fst-n)
                          (format "\"%s\":R -> \"%s\"" this-n snd-n)])))
     Parser
-  (d [this t]
+  (d-int [this t]
     (let [fst (force (:fst this))
           snd (force (:snd this))]
       (if (nullable? fst)
@@ -327,7 +328,7 @@ and provides a simple API for parsing streams."}
                          (format "\"%s\" -> \"%s\"" this-n left-n)
                          (format "\"%s\" -> \"%s\"" this-n right-n)])))
   Parser
-  (d [this t]
+  (d-int [this t]
     (alt (d (force (:left this)) t)
          (d (force (:right this)) t)))
   (compact-int [this]
