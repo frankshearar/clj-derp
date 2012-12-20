@@ -52,8 +52,8 @@ and provides a simple API for parsing streams."}
                  (swap! v# (fn [_#] (apply ~fn [x#]))))
                (deref v#))))))))
 
-(defn soft-memoize [f]
-  (let [cache (atom (cache/soft-cache-factory {}))
+(defn- memoize-with-cache [f new-cache]
+  (let [cache (atom new-cache)
         recalc (fn [args]
                  (let [answer (apply f args)]
                    (swap! cache (fn [c] (cache/miss c args answer)))
@@ -66,6 +66,10 @@ and provides a simple API for parsing streams."}
             answer
             (recalc args)))
         (recalc args)))))
+
+(defn soft-memoize
+  ([f] (memoize-with-cache f (cache/soft-cache-factory {})))
+  ([f cache] (memoize-with-cache f cache)))
 
 (defprotocol Parser
   (d-int [this token])
