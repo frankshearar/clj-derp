@@ -74,10 +74,8 @@ and provides a simple API for parsing streams."}
   (nullable-int? [this])
   (parse-null-int [this]))
 
-;; Since we use Delays, equality comparison becomes troublesome.
-;; eq gives us a chance to force any delays, permitting us to
-;; still compare graphs for structural equality.
 (defprotocol ComparableParser
+  "Since we use Delays, equality comparison becomes troublesome. This protocol gives us a chance to force any delays, permitting us to still compare graphs for structural equality."
   (eq [this that]))
 
 (defprotocol StructuralParser
