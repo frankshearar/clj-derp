@@ -87,6 +87,7 @@ and provides a simple API for parsing streams."}
   (subparsers [this]))
 
 (defprotocol PrintableParser
+  "A protocol to provide for the printing of a graph in dotfile format."
   (print-node [this int-map]
     "Print this parser as part of a dotfile. int-map maps parsers to integers."))
 
@@ -155,7 +156,7 @@ and provides a simple API for parsing streams."}
   (subparsers [_] [])
   PrintableParser
   (print-node [this int-map]
-    (format "\"%s\" [shape=\"record\", label=\"token | %s\"]" (get int-map this) (:token this)))
+    (format "\"%s\" [shape=\"record\", label=\"token | %s\"]" (get int-map this) token))
   Parser
   (d-int [this t]
     (if (= token t)
@@ -176,7 +177,7 @@ and provides a simple API for parsing streams."}
   (subparsers [_] [])
   PrintableParser
   (print-node [this int-map]
-    (format "\"%s\" [shape=\"record\", label=\"token | %s\"]" (get int-map this) (:token-set this)))
+    (format "\"%s\" [shape=\"record\", label=\"token | %s\"]" (get int-map this) token-set))
   Parser
   (d-int [this t]
     (if (contains? token-set t)
@@ -202,46 +203,46 @@ and provides a simple API for parsing streams."}
   PrintableParser
   (print-node [this int-map]
     (let [this-n (get int-map this)
-          sub-n (get int-map (:parser this))]
+          sub-n (get int-map parser)]
       (string/join "\n" [(format "\"%s\" [label=\"red\"]" this-n)
                          (format "\"%s\" -> \"%s\"" this-n sub-n)])))
   Parser
   (d-int [this t]
-    (red (d (:parser this) t) (:fn this)))
+    (red (d parser t) fn))
   (compact-int [this]
     (cond
-     (red? (:parser this))
+     (red? parser)
      (red
-      (compact (:parser (:parser this)))
-      (comp (:fn this) (:fn (:parser this))))
-     :else (red (compact (:parser this)) (:fn this))))
-  (empty-int? [this] (empty-p? (:parser this)))
+      (compact parser)
+      (comp fn (:fn parser)))
+     :else (red (compact parser) fn)))
+  (empty-int? [this] (empty-p? parser))
   (nullable-int? [this]
-    (nullable? (:parser this)))
+    (nullable? parser))
   (parse-null-int [this]
-    (set (map (:fn this) (parse-null (:parser this))))))
+    (set (map fn (parse-null parser)))))
 
 (defrecord star-parser [parser]
   ComparableParser
   (eq [this that]
     (= this that))
   StructuralParser
-  (subparsers [this] [(:parser this)])
+  (subparsers [this] [parser])
   PrintableParser
   (print-node [this int-map]
     (let [this-n (get int-map this)
-          sub-n (get int-map (:parser this))]
+          sub-n (get int-map parser)]
       (string/join "\n" [(format "\"%s\" [label=\"star\"]" this-n)
                          (format "\"%s\" -> \"%s\"" this-n sub-n)])))
   Parser
   (d-int [this t]
-    (cat (d (:parser this) t) this))
+    (cat (d parser t) this))
   (compact-int [this]
-    (star (compact (:parser this))))
+    (star (compact parser)))
   (empty-int? [_] false)
   (nullable-int? [this]
-    (or (nullable? (:parser this))
-        (empty-p? (:parser this))))
+    (or (nullable? parser)
+        (empty-p? parser)))
   (parse-null-int [this]
     #{'()}))
 
@@ -262,19 +263,19 @@ and provides a simple API for parsing streams."}
     (and (eq (force (:fst this)) (force (:fst that)))
          (eq (force (:snd this)) (force (:snd that)))))
   StructuralParser
-  (subparsers [this] [(force (:fst this)) (force (:snd this))])
+  (subparsers [this] [(force fst) (force snd)])
   PrintableParser
   (print-node [this int-map]
     (let [this-n (get int-map this)
-          fst-n (get int-map (force (:fst this)))
-          snd-n (get int-map (force (:snd this)))]
+          fst-n (get int-map (force fst))
+          snd-n (get int-map (force snd))]
       (string/join "\n" [(format "\"%s\" [shape=\"none\", margin=0, label=<<table border=\"0\" cellborder=\"1\" cellspacing=\"0\" cellpadding=\"4\"><tr><td colspan=\"2\">seq</td></tr><tr><td port=\"L\">L</td><td port=\"R\">R</td></tr></table>>]" this-n)
                          (format "\"%s\":L -> \"%s\"" this-n fst-n)
                          (format "\"%s\":R -> \"%s\"" this-n snd-n)])))
     Parser
   (d-int [this t]
-    (let [fst (force (:fst this))
-          snd (force (:snd this))]
+    (let [fst (force fst)
+          snd (force snd)]
       (if (nullable? fst)
         (alt (cat (eps** (parse-null fst))
                   (d snd t))
