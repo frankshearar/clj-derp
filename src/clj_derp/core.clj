@@ -304,15 +304,15 @@ and provides a simple API for parsing streams."}
            this
            (cat c1 c2))))))
   (empty-int? [this]
-    (or (empty-p? (force (:fst this)))
-        (empty-p? (force (:snd this)))))
+    (or (empty-p? (force fst))
+        (empty-p? (force snd))))
   (nullable-int? [this]
-    (and (nullable? (force (:fst this)))
-         (nullable? (force (:snd this)))))
+    (and (nullable? (force fst))
+         (nullable? (force snd))))
   (parse-null-int [this]
     (cart-prod
-     (parse-null (force (:fst this)))
-     (parse-null (force (:snd this)))
+     (parse-null (force fst))
+     (parse-null (force snd))
      (fn [a b] [a b]))))
 
 (defrecord union-parser [left right]
@@ -325,8 +325,8 @@ and provides a simple API for parsing streams."}
   PrintableParser
   (print-node [this int-map]
     (let [this-n (get int-map this)
-          left-n (get int-map (force (:left this)))
-          right-n (get int-map (force (:right this)))]
+          left-n (get int-map (force left))
+          right-n (get int-map (force right))]
       (string/join "\n" [(format "\"%s\" [label=\"or\"]" this-n)
                          (format "\"%s\" -> \"%s\"" this-n left-n)
                          (format "\"%s\" -> \"%s\"" this-n right-n)])))
