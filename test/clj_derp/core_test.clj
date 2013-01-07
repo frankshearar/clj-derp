@@ -74,6 +74,25 @@
         (is (eq (cat (eps* "a") (lit "b"))
                 (d (cat (lit "a") (lit "b")) "a")))))))
 
+(deftest intercepting
+  (testing "Interception"
+    (let [counter (atom 0)
+          func identity
+          intercepted (intercept func (fn [_] (swap! counter inc')))]
+      (do
+        (is (= :first-call (intercepted :first-call)))
+        (is (= 1 @counter))
+        (is (= :another-value (intercepted :another-value)))
+        (is (= 2 @counter)))))
+  (testing "pre-parse-callback"
+    (let [call-count (atom 0)]
+      (binding [*pre-parse-callback* (fn [p] (swap! call-count inc))]
+        (do
+          (parse-null (eps))
+          (is (= 1 @call-count))
+          (parse-null (eps))
+          (is (= 2 @call-count)))))))
+
 (deftest nullability
   (testing "Nullability"
     (testing "of empty"

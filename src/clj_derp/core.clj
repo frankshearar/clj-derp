@@ -71,6 +71,16 @@ and provides a simple API for parsing streams."}
   ([f] (memoize-with-cache f (cache/soft-cache-factory {})))
   ([f cache] (memoize-with-cache f cache)))
 
+(defn intercept [f arity-1-function]
+  "Take a function and return another function that, when invoked, runs a side function before calling the original function. arity-1-function is the callback."
+  (fn [& args] (do
+                 (apply arity-1-function args)
+                 (apply f args))))
+
+(def ^{:dynamic true
+       :doc "This function runs just before the parse-null-int call of every parser. Its result is thrown away."}
+  *pre-parse-callback* nil)
+
 (defprotocol Parser
   (d-int [this token])
   (compact-int [this])
@@ -93,7 +103,11 @@ and provides a simple API for parsing streams."}
 
 (def compact (soft-memoize (fn [parser] (compact-int parser))))
 (def d (soft-memoize (fn [parser token] (d-int parser token))))
-(defn-fix parse-null {} (fn [parser] (parse-null-int parser)))
+(defn-fix parse-null-1 {} (fn [parser] (parse-null-int parser)))
+(def parse-null
+  (intercept parse-null-1
+             (fn [p] (when *pre-parse-callback*
+                       (apply *pre-parse-callback* [p])))))
 (defn-fix nullable? false (fn [parser] (nullable-int? parser)))
 (defn-fix empty-p? false (fn [parser] (empty-int? parser)))
 
