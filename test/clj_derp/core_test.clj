@@ -1,7 +1,8 @@
 (ns clj-derp.core-test
   (:use clojure.test
         clj-derp.core)
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str])
+  (:require [clojure.core.cache :as cache]))
 
 (deftest making-parsers
   (testing "Making"
@@ -366,3 +367,18 @@
     (is (= #{} (cart-prod #{1} #{} cat)))
     (is (= #{[1 2]} (cart-prod #{1} #{2} cat)))
     (is (= #{[:a 1] [:a 2] [:b 1] [:b 2]} (cart-prod #{:a :b} #{1 2} cat)))))
+
+(deftest memoizing
+  (let [call-count (atom 0)
+        f (fn [n] (do (swap! call-count inc) (+ n 1)))]
+    (let [m (memoized f)]
+      (do
+        (swap! call-count (fn [_] 0))
+        (f 1) (f 1)
+        (is (= 2 @call-count))))
+    (testing "with given cache"
+      (let [m (memoized f (cache/soft-cache-factory {}))]
+        (do
+          (swap! call-count (fn [_] 0))
+          (f 1) (f 1)
+          (is (= 2 @call-count)))))))

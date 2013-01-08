@@ -67,7 +67,8 @@ and provides a simple API for parsing streams."}
             (recalc args)))
         (recalc args)))))
 
-(defn soft-memoize
+(defn memoized
+  ^{:doc "Given a function f, return a memoized function using either a given cache, or a cache using soft references."}
   ([f] (memoize-with-cache f (cache/soft-cache-factory {})))
   ([f cache] (memoize-with-cache f cache)))
 
@@ -91,8 +92,8 @@ and provides a simple API for parsing streams."}
   (print-node [this int-map]
     "Print this parser as part of a dotfile. int-map maps parsers to integers."))
 
-(def compact (soft-memoize (fn [parser] (compact-int parser))))
-(def d (soft-memoize (fn [parser token] (d-int parser token))))
+(def compact (memoized (fn [parser] (compact-int parser))))
+(def d (memoized (fn [parser token] (d-int parser token))))
 (defn-fix parse-null {} (fn [parser] (parse-null-int parser)))
 (defn-fix nullable? false (fn [parser] (nullable-int? parser)))
 (defn-fix empty-p? false (fn [parser] (empty-int? parser)))
