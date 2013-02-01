@@ -4,7 +4,8 @@
 "This file defines the derivative of a context free grammar,
 and provides a simple API for parsing streams."}
   (:require [clojure.set :as set])
-  (:require [clojure.string :as string]))
+  (:require [clojure.string :as string])
+  (:require [clojure.core.cache :as cache]))
 
 (defn cart-prod [set-one set-two concat-fn]
   "Return the Cartesian product of set-one and set-two."
@@ -16,13 +17,13 @@ and provides a simple API for parsing streams."}
         set-one)))
 
 (defmacro defn-fix [name bottom fn]
-  `(let* [*cache*# (atom {}) ;TODO: This will need to change to a weak ref cache.
+  `(let* [*cache*# (atom (cache/soft-cache-factory {}))
        *changed?*# (atom false)
        *running?*# (atom false)
        *visited*# (atom {})]
       (defn ~name [x#]
-        (let [cached?# (contains? (deref *cache*#) x#)
-              cached# (get (deref *cache*#) x#)
+        (let [cached?# (cache/has? (deref *cache*#) x#)
+              cached# (cache/lookup (deref *cache*#) x#)
               run?# (deref *running?*#)]
           (cond
            (and cached?# (not run?#))
@@ -35,7 +36,9 @@ and provides a simple API for parsing streams."}
              (let [new-val# (apply ~fn [x#])]
                (when (not (= new-val# cached#))
                  (swap! *changed?*# (fn [_#] true))
-                 (swap! *cache*# assoc x# new-val#))
+                 (swap! *cache*# (fn [c#] (if cached?#
+                                            (cache/hit c# x#)
+                                            (cache/miss c# x# new-val#)))))
                new-val#))
            (and (not cached?#) (not run?#))
            (do
@@ -49,17 +52,35 @@ and provides a simple API for parsing streams."}
                  (swap! v# (fn [_#] (apply ~fn [x#]))))
                (deref v#))))))))
 
+(defn- memoize-with-cache [f new-cache]
+  (let [cache (atom new-cache)
+        recalc (fn [args]
+                 (let [answer (apply f args)]
+                   (swap! cache (fn [c] (cache/miss c args answer)))
+                   answer))]
+    (fn [& args]
+      (if (cache/has? @cache args)
+        (do
+          (swap! cache (fn [c] (cache/hit c args)))
+          (if-let [answer (cache/lookup @cache args)]
+            answer
+            (recalc args)))
+        (recalc args)))))
+
+(defn memoized
+  ^{:doc "Given a function f, return a memoized function using either a given cache, or a cache using soft references."}
+  ([f] (memoize-with-cache f (cache/soft-cache-factory {})))
+  ([f cache] (memoize-with-cache f cache)))
+
 (defprotocol Parser
-  (d [this token])
+  (d-int [this token])
   (compact-int [this])
   (empty-int? [this])
   (nullable-int? [this])
   (parse-null-int [this]))
 
-;; Since we use Delays, equality comparison becomes troublesome.
-;; eq gives us a chance to force any delays, permitting us to
-;; still compare graphs for structural equality.
 (defprotocol ComparableParser
+  "Since we use Delays, equality comparison becomes troublesome. This protocol gives us a chance to force any delays, permitting us to still compare graphs for structural equality."
   (eq [this that]))
 
 (defprotocol StructuralParser
@@ -67,6 +88,7 @@ and provides a simple API for parsing streams."}
   (subparsers [this]))
 
 (defprotocol PrintableParser
+  "A protocol to provide for the printing of a graph in dotfile format."
   (print-node [this int-map]
     "Print this parser as part of a dotfile. int-map maps parsers to integers."))
 
@@ -74,7 +96,8 @@ and provides a simple API for parsing streams."}
   (set-ref! [this parser]
     "Set the reference of a delegate-parser."))
 
-(def compact (memoize (fn [parser] (compact-int parser)))) ;TODO: This will need to change to a weak ref cache.
+(def compact (memoized (fn [parser] (compact-int parser))))
+(def d (memoized (fn [parser token] (d-int parser token))))
 (defn-fix parse-null {} (fn [parser] (parse-null-int parser)))
 (defn-fix nullable? false (fn [parser] (nullable-int? parser)))
 (defn-fix empty-p? false (fn [parser] (empty-int? parser)))
@@ -125,7 +148,7 @@ and provides a simple API for parsing streams."}
   (print-node [this int-map]
     (format "\"%s\" [label=\"empty\"]" (get int-map this :not-found)))
   Parser
-  (d [this _] this)
+  (d-int [this _] this)
   (compact-int [this] this)
   (empty-int? [_] true)
   (nullable-int? [this] false)
@@ -141,7 +164,7 @@ and provides a simple API for parsing streams."}
   (print-node [this int-map]
     (format "\"%s\" [shape=\"record\", label=\"eps* | %s\"]" (get int-map this) tree-set))
   Parser
-  (d [this _] (empty-p))
+  (d-int [this _] (empty-p))
   (compact-int [this] this)
   (empty-int? [_] false)
   (nullable-int? [this] true)
@@ -155,9 +178,9 @@ and provides a simple API for parsing streams."}
   (subparsers [_] [])
   PrintableParser
   (print-node [this int-map]
-    (format "\"%s\" [shape=\"record\", label=\"token | %s\"]" (get int-map this) (:token this)))
+    (format "\"%s\" [shape=\"record\", label=\"token | %s\"]" (get int-map this) token))
   Parser
-  (d [this t]
+  (d-int [this t]
     (if (= token t)
       (eps* token)
       (empty-p)))
@@ -176,9 +199,9 @@ and provides a simple API for parsing streams."}
   (subparsers [_] [])
   PrintableParser
   (print-node [this int-map]
-    (format "\"%s\" [shape=\"record\", label=\"token | %s\"]" (get int-map this) (:token-set this)))
+    (format "\"%s\" [shape=\"record\", label=\"token | %s\"]" (get int-map this) token-set))
   Parser
-  (d [this t]
+  (d-int [this t]
     (if (contains? token-set t)
       (eps* t)
       (empty-p)))
@@ -202,46 +225,46 @@ and provides a simple API for parsing streams."}
   PrintableParser
   (print-node [this int-map]
     (let [this-n (get int-map this)
-          sub-n (get int-map (:parser this))]
+          sub-n (get int-map parser)]
       (string/join "\n" [(format "\"%s\" [label=\"red\"]" this-n)
                          (format "\"%s\" -> \"%s\"" this-n sub-n)])))
   Parser
-  (d [this t]
-    (red (d (:parser this) t) (:fn this)))
+  (d-int [this t]
+    (red (d parser t) fn))
   (compact-int [this]
     (cond
-     (red? (:parser this))
+     (red? parser)
      (red
-      (compact (:parser (:parser this)))
-      (comp (:fn this) (:fn (:parser this))))
-     :else (red (compact (:parser this)) (:fn this))))
-  (empty-int? [this] (empty-p? (:parser this)))
+      (compact parser)
+      (comp fn (:fn parser)))
+     :else (red (compact parser) fn)))
+  (empty-int? [this] (empty-p? parser))
   (nullable-int? [this]
-    (nullable? (:parser this)))
+    (nullable? parser))
   (parse-null-int [this]
-    (set (map (:fn this) (parse-null (:parser this))))))
+    (set (map fn (parse-null parser)))))
 
 (defrecord star-parser [parser]
   ComparableParser
   (eq [this that]
     (= this that))
   StructuralParser
-  (subparsers [this] [(:parser this)])
+  (subparsers [this] [parser])
   PrintableParser
   (print-node [this int-map]
     (let [this-n (get int-map this)
-          sub-n (get int-map (:parser this))]
+          sub-n (get int-map parser)]
       (string/join "\n" [(format "\"%s\" [label=\"star\"]" this-n)
                          (format "\"%s\" -> \"%s\"" this-n sub-n)])))
   Parser
-  (d [this t]
-    (cat (d (:parser this) t) this))
+  (d-int [this t]
+    (cat (d parser t) this))
   (compact-int [this]
-    (star (compact (:parser this))))
+    (star (compact parser)))
   (empty-int? [_] false)
   (nullable-int? [this]
-    (or (nullable? (:parser this))
-        (empty-p? (:parser this))))
+    (or (nullable? parser)
+        (empty-p? parser)))
   (parse-null-int [this]
     #{'()}))
 
@@ -262,19 +285,19 @@ and provides a simple API for parsing streams."}
     (and (eq (force (:fst this)) (force (:fst that)))
          (eq (force (:snd this)) (force (:snd that)))))
   StructuralParser
-  (subparsers [this] [(force (:fst this)) (force (:snd this))])
+  (subparsers [this] [(force fst) (force snd)])
   PrintableParser
   (print-node [this int-map]
     (let [this-n (get int-map this)
-          fst-n (get int-map (force (:fst this)))
-          snd-n (get int-map (force (:snd this)))]
+          fst-n (get int-map (force fst))
+          snd-n (get int-map (force snd))]
       (string/join "\n" [(format "\"%s\" [shape=\"none\", margin=0, label=<<table border=\"0\" cellborder=\"1\" cellspacing=\"0\" cellpadding=\"4\"><tr><td colspan=\"2\">seq</td></tr><tr><td port=\"L\">L</td><td port=\"R\">R</td></tr></table>>]" this-n)
                          (format "\"%s\":L -> \"%s\"" this-n fst-n)
                          (format "\"%s\":R -> \"%s\"" this-n snd-n)])))
     Parser
-  (d [this t]
-    (let [fst (force (:fst this))
-          snd (force (:snd this))]
+  (d-int [this t]
+    (let [fst (force fst)
+          snd (force snd)]
       (if (nullable? fst)
         (alt (cat (eps** (parse-null fst))
                   (d snd t))
@@ -303,15 +326,15 @@ and provides a simple API for parsing streams."}
            this
            (cat c1 c2))))))
   (empty-int? [this]
-    (or (empty-p? (force (:fst this)))
-        (empty-p? (force (:snd this)))))
+    (or (empty-p? (force fst))
+        (empty-p? (force snd))))
   (nullable-int? [this]
-    (and (nullable? (force (:fst this)))
-         (nullable? (force (:snd this)))))
+    (and (nullable? (force fst))
+         (nullable? (force snd))))
   (parse-null-int [this]
     (cart-prod
-     (parse-null (force (:fst this)))
-     (parse-null (force (:snd this)))
+     (parse-null (force fst))
+     (parse-null (force snd))
      (fn [a b] [a b]))))
 
 (defrecord union-parser [left right]
@@ -324,13 +347,13 @@ and provides a simple API for parsing streams."}
   PrintableParser
   (print-node [this int-map]
     (let [this-n (get int-map this)
-          left-n (get int-map (force (:left this)))
-          right-n (get int-map (force (:right this)))]
+          left-n (get int-map (force left))
+          right-n (get int-map (force right))]
       (string/join "\n" [(format "\"%s\" [label=\"or\"]" this-n)
                          (format "\"%s\" -> \"%s\"" this-n left-n)
                          (format "\"%s\" -> \"%s\"" this-n right-n)])))
   Parser
-  (d [this t]
+  (d-int [this t]
     (alt (d (force (:left this)) t)
          (d (force (:right this)) t)))
   (compact-int [this]
