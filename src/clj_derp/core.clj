@@ -132,7 +132,7 @@ and provides a simple API for parsing streams."}
   (set-ref! [this new-parser-ref]
     (swap! (:ref this) (fn [_] new-parser-ref)))
   Parser
-  (d [this t] (d (:ref this) t))
+  (d-int [this t] (d (:ref this) t))
   (compact-int [this] (compact (:ref this)))
   (empty-int? [this] (empty-int? (:ref this)))
   (nullable-int? [this] (nullable-int? (:ref this)))
